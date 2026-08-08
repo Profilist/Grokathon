@@ -6,6 +6,7 @@ import {
   getPlayerResult,
   getLobbyRole,
   handlesMatch,
+  shouldShowSpectatorView,
   type GameLobby,
 } from "./lobby";
 
@@ -48,6 +49,20 @@ describe("lobby helpers", () => {
         "viewer-id",
       ),
     ).toBe(false);
+  });
+
+  it("switches a full lobby to spectating only for unseated viewers", () => {
+    const fullLobby: GameLobby = {
+      ...lobby,
+      guest_user_id: "guest-id",
+      guest_handle: "teammate",
+      status: "ready",
+    };
+
+    expect(shouldShowSpectatorView(lobby, "viewer")).toBe(false);
+    expect(shouldShowSpectatorView(fullLobby, "viewer")).toBe(true);
+    expect(shouldShowSpectatorView(fullLobby, "host")).toBe(false);
+    expect(shouldShowSpectatorView(fullLobby, "guest")).toBe(false);
   });
 
   it("creates a short stable anonymous display name", () => {

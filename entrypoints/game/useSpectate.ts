@@ -24,6 +24,7 @@ export type SpectateStatus = "loading" | "unconfigured" | "ready" | "error";
 interface UseSpectateOptions {
   enabled: boolean;
   gameId: string;
+  initiallySpectating?: boolean;
   viewerHandle: string | null;
 }
 
@@ -73,6 +74,7 @@ function friendlyError(error: unknown): string {
 export function useSpectate({
   enabled,
   gameId,
+  initiallySpectating = false,
   viewerHandle,
 }: UseSpectateOptions): SpectateState {
   const [messages, setMessages] = useState<SpectatorMessage[]>([]);
@@ -81,7 +83,7 @@ export function useSpectate({
   const [status, setStatus] = useState<SpectateStatus>("loading");
   const [error, setError] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
-  const [isSpectating, setIsSpectating] = useState(false);
+  const [isSpectating, setIsSpectating] = useState(initiallySpectating);
   const [isRealtimeConnected, setIsRealtimeConnected] = useState(false);
   const [attempt, setAttempt] = useState(0);
 

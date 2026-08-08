@@ -2,10 +2,12 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useGameLobby, type GameLobbyState } from "./useGameLobby";
 import { ArenaBackdrop } from "./ArenaBackdrop";
 import { RpsArena3D } from "./RpsArena3D";
+import { SpectateCard } from "./SpectateCard";
 import { WAGER_STAKE_USD } from "./concept";
 import {
   getPlayerHasPlayed,
   getPlayerResult,
+  shouldShowSpectatorView,
   type GameLobby,
   type GameStatus,
   type RpsMove,
@@ -21,6 +23,7 @@ type UiPhase = "open" | "full" | "wagerConfirm" | "spectating" | "playing" | "co
 
 interface GameCardProps {
   gameId: string;
+  hostAvatar: string | null;
   hostHandle: string;
   preview: PreviewMode | null;
   theme: "light" | "dark";
@@ -239,6 +242,7 @@ function deriveUiPhase({
 
 export function GameCard({
   gameId,
+  hostAvatar,
   hostHandle,
   preview,
   theme,
@@ -277,6 +281,22 @@ export function GameCard({
       setJoinedPendingConfirm(false);
     }
   }, [joinedPendingConfirm, preview, state.role]);
+
+  if (preview === null && shouldShowSpectatorView(state.lobby, state.role)) {
+    return (
+      <SpectateCard
+        authorAvatar={hostAvatar}
+        authorHandle={hostHandle}
+        gameId={gameId}
+        gameType="rps"
+        initiallySpectating
+        lobbyState={state}
+        preview={null}
+        theme={theme}
+        viewerHandle={viewerHandle}
+      />
+    );
+  }
 
   const displayedHost = state.lobby?.host_handle ?? hostHandle;
   const displayedGuest = state.lobby?.guest_handle ?? null;

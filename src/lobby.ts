@@ -42,6 +42,13 @@ export function canJoinLobby(lobby: GameLobby | null, userId: string | null): bo
   );
 }
 
+export function shouldShowSpectatorView(
+  lobby: GameLobby | null,
+  role: LobbyRole,
+): boolean {
+  return Boolean(lobby?.guest_user_id && role === "viewer");
+}
+
 export function fallbackPlayerHandle(userId: string): string {
   return `player-${userId.replaceAll("-", "").slice(0, 6)}`;
 }
