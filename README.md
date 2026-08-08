@@ -2,6 +2,13 @@
 
 A Chrome extension prototype that attaches playable 3D games to marked posts in the X feed. It supports the original two-player Rock Paper Scissors arena and a four-human Taiwanese 16-tile Mahjong table powered by Supabase Realtime and an authoritative Edge Function.
 
+Two markers render two different cards:
+
+| Marker | Card |
+| --- | --- |
+| `[grokplay:<id>]` | Head-to-head lobby: open a game, join it, play a round |
+| `[grokwatch:<id>]` | Spectate card: the stakes, the players, who is watching, and a live room with chat |
+
 ## 1. Configure Supabase
 
 Create a Supabase project, then:
@@ -71,12 +78,13 @@ The extension uses Supabase anonymous authentication to give each installation a
 
 ## 4. Four-player 3D Mahjong
 
-Publish a separate marker for Mahjong:
+Publish a Mahjong marker. The game type comes from the slug prefix, so both of
+these open the same kind of table:
 
 ```text
 Four seats open. Who wants to play Mahjong?
 
-[grokplay:mahjong:mahjong-8f3k]
+[grokplay:mahjong-8f3k]
 ```
 
 1. The post author views their own post to create seat zero.
@@ -88,6 +96,26 @@ Four seats open. Who wants to play Mahjong?
 
 Opponent hands, the wall order, pending claims, and the deterministic seed are stored only in the private server state. Realtime publishes lobby summaries and sanitized events.
 
+The original explicit form, `[grokplay:mahjong:table_12]`, still works.
+
+## 5. Spectate a game
+
+Anyone can point a post at an existing game with the spectate marker. Reuse the same game ID:
+
+```text
+nico vs allegra, winner takes the pot 👀
+
+[grokwatch:rps-8f3k]
+```
+
+The card shows the stakes, both players, the live round status, and how many people are watching. Clicking **Spectate** swaps the card into the spectate room: the same 3D arena in read-only mode, plus a live chat.
+
+- The spectator roster comes from Supabase Realtime Presence, so it empties on its own when people navigate away. You only appear in it after clicking **Spectate**.
+- Chat is stored in `spectator_messages` and delivered over Supabase Realtime. It is styled after an X reply thread but is not posted to X.
+- Spectators never see a move before both players lock in. Row Level Security keeps each player's choice private until the round resolves.
+
+A spectate post never opens a lobby of its own, so publish the `[grokplay:<id>]` post first and let the host view it.
+
 ## Troubleshooting
 
 - **Supabase setup required:** create `.env`, rebuild, and reload the extension.
@@ -98,6 +126,8 @@ Opponent hands, the wall order, pending claims, and the deterministic seed are s
 - **Run the RPS round migration:** apply every migration in filename order if the lobby works but move submission fails.
 - **Deploy the Mahjong function:** run `supabase functions deploy mahjong-game` if the Mahjong card reports that its server is unavailable.
 - **Table looks compact:** join a seat or click **Open table**; the Mahjong iframe expands inside the post without opening a new page.
+- **Run the spectator chat migration:** apply `20260808210000_add_spectator_chat.sql` if the spectate card loads but chat fails.
+- **No match yet:** the spectate marker points at a game ID whose host has not opened their `[grokplay:<id>]` post.
 
 ## Checks
 

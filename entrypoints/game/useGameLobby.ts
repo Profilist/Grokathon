@@ -29,6 +29,11 @@ export type LobbyStatus =
   | "error";
 
 interface UseGameLobbyOptions {
+  /**
+   * Opens a lobby when the author views their own marked post. Spectate cards
+   * pass `false` so a `[grokwatch:…]` post never mints a lobby of its own.
+   */
+  createIfMissing?: boolean;
   enabled: boolean;
   gameId: string;
   hostHandle: string;
@@ -129,6 +134,7 @@ function friendlyError(error: unknown): string {
 }
 
 export function useGameLobby({
+  createIfMissing = true,
   enabled,
   gameId,
   hostHandle,
@@ -201,7 +207,7 @@ export function useGameLobby({
           });
 
         let currentLobby = await fetchLobby(supabase, gameId);
-        if (!currentLobby && handlesMatch(hostHandle, viewerHandle)) {
+        if (!currentLobby && createIfMissing && handlesMatch(hostHandle, viewerHandle)) {
           currentLobby = await createHostLobby(supabase, user, gameId, hostHandle);
         }
         if (disposed) return;
@@ -224,7 +230,7 @@ export function useGameLobby({
       setIsRealtimeConnected(false);
       if (channel) void supabase.removeChannel(channel);
     };
-  }, [attempt, enabled, gameId, hostHandle, viewerHandle]);
+  }, [attempt, createIfMissing, enabled, gameId, hostHandle, viewerHandle]);
 
   const role = useMemo(() => getLobbyRole(lobby, userId), [lobby, userId]);
   const canJoin = useMemo(() => canJoinLobby(lobby, userId), [lobby, userId]);

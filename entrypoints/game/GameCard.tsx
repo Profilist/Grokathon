@@ -1,6 +1,12 @@
 import { useGameLobby, type GameLobbyState } from "./useGameLobby";
 import { RpsArena3D } from "./RpsArena3D";
 import {
+  GAME_TITLE,
+  WAGER_POT_USD,
+  WAGER_STAKE_USD,
+  formatUsd,
+} from "./concept";
+import {
   getPlayerHasPlayed,
   getPlayerResult,
   type GameLobby,
@@ -175,13 +181,13 @@ export function GameCard({
               <div className="brand__meta">Game #{gameId}</div>
             </div>
           </div>
-          <span className="wager-badge">Concept · $5 wager</span>
+          <span className="wager-badge">Concept · {formatUsd(WAGER_STAKE_USD)} wager</span>
         </header>
 
         <div className="title-row">
           <div>
             <p className="eyebrow">HEAD-TO-HEAD</p>
-            <h1>Rock Paper Scissors</h1>
+            <h1>{GAME_TITLE}</h1>
           </div>
           <div className={`lobby-status lobby-status--${state.status}`} aria-live="polite">
             <span className="lobby-status__dot" />
@@ -214,7 +220,7 @@ export function GameCard({
             <footer className="game-card__footer">
               <div className="rules">
                 <span>One-round demo</span>
-                <span>Winner takes $10</span>
+                <span>Winner takes {formatUsd(WAGER_POT_USD)}</span>
               </div>
               <button
                 type="button"

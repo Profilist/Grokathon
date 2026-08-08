@@ -1,15 +1,20 @@
 import React, { Suspense, lazy } from "react";
 import { createRoot } from "react-dom/client";
 import { GameCard } from "./GameCard";
+import { SpectateCard } from "./SpectateCard";
 import type { GameStatus } from "../../src/lobby";
+import { isGameType, type GameType } from "../../src/games/catalog";
 import "./styles.css";
 
 const params = new URLSearchParams(window.location.search);
 const gameId = params.get("gameId") ?? "demo";
-const gameKind = params.get("gameKind") === "mahjong" ? "mahjong" : "rps";
+const gameKindParam = params.get("gameKind");
+const gameKind: GameType = isGameType(gameKindParam) ? gameKindParam : "rps";
 const hostHandle = params.get("hostHandle") ?? "host";
+const hostAvatar = params.get("hostAvatar");
 const viewerHandle = params.get("viewerHandle");
 const theme = params.get("theme") === "light" ? "light" : "dark";
+const card = params.get("card") === "watch" ? "watch" : "play";
 const preview = import.meta.env.DEV ? params.get("preview") : null;
 const root = document.getElementById("root");
 
@@ -29,7 +34,17 @@ const MahjongCard = lazy(() =>
 
 createRoot(root).render(
   <React.StrictMode>
-    {gameKind === "mahjong" ? (
+    {card === "watch" ? (
+      <SpectateCard
+        authorAvatar={hostAvatar}
+        authorHandle={hostHandle}
+        gameId={gameId}
+        gameType={gameKind}
+        preview={previewStatus}
+        theme={theme}
+        viewerHandle={viewerHandle}
+      />
+    ) : gameKind === "mahjong" ? (
       <Suspense fallback={<main className="page" data-theme={theme} />}>
         <MahjongCard
           gameId={gameId}

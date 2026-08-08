@@ -3,11 +3,12 @@ import {
   extractProfileHandle,
   extractStatusHandle,
   inferThemeFromColor,
-  parseGameMarker,
+  parseCardMarker,
   parseGameResizeMessage,
-  type GameReference,
+  type CardKind,
   type XTheme,
 } from "../src/detection";
+import { GAME_CATALOG, type GameType } from "../src/games/catalog";
 
 const POST_SELECTOR = 'article[data-testid="tweet"]';
 const HOST_ATTRIBUTE = "data-grokplay-host";
@@ -34,6 +35,14 @@ function findAuthorHandle(post: HTMLElement): string | null {
   return extractStatusHandle(hrefs);
 }
 
+function findAuthorAvatar(post: HTMLElement): string | null {
+  const image =
+    post.querySelector<HTMLImageElement>('[data-testid="Tweet-User-Avatar"] img') ??
+    post.querySelector<HTMLImageElement>('div[data-testid^="UserAvatar-Container-"] img');
+
+  return image?.src || null;
+}
+
 function findViewerHandle(): string | null {
   const profileLink = document.querySelector<HTMLAnchorElement>(
     'a[data-testid="AppTabBar_Profile_Link"]',
@@ -58,8 +67,11 @@ function findActionBar(post: HTMLElement): HTMLElement | null {
 }
 
 interface GameContext {
+  /** Which card to render: the game itself, or the spectate view of it. */
+  card: CardKind;
   gameId: string;
-  kind: GameReference["kind"];
+  gameType: GameType;
+  hostAvatar: string | null;
   hostHandle: string | null;
   viewerHandle: string | null;
   theme: XTheme;
@@ -67,9 +79,11 @@ interface GameContext {
 
 function getMountKey(context: GameContext): string {
   return [
+    context.card,
+    context.gameType,
     context.gameId,
-    context.kind,
     context.hostHandle ?? "",
+    context.hostAvatar ?? "",
     context.viewerHandle ?? "",
     context.theme,
   ].join(":");
@@ -78,7 +92,8 @@ function getMountKey(context: GameContext): string {
 function createGameHost(context: GameContext): HTMLElement {
   const host = document.createElement("div");
   host.setAttribute(HOST_ATTRIBUTE, context.gameId);
-  host.dataset.grokplayKind = context.kind;
+  host.dataset.grokplayKind = context.gameType;
+  host.dataset.grokplayCard = context.card;
   host.setAttribute(MOUNT_KEY_ATTRIBUTE, getMountKey(context));
   host.style.cssText = [
     "display:block",
@@ -92,15 +107,21 @@ function createGameHost(context: GameContext): HTMLElement {
 
   const iframeUrl = new URL(browser.runtime.getURL("/game.html"));
   iframeUrl.searchParams.set("gameId", context.gameId);
-  iframeUrl.searchParams.set("gameKind", context.kind);
+  iframeUrl.searchParams.set("gameKind", context.gameType);
+  iframeUrl.searchParams.set("card", context.card);
   iframeUrl.searchParams.set("theme", context.theme);
 
   if (context.hostHandle) iframeUrl.searchParams.set("hostHandle", context.hostHandle);
+  if (context.hostAvatar) iframeUrl.searchParams.set("hostAvatar", context.hostAvatar);
   if (context.viewerHandle) iframeUrl.searchParams.set("viewerHandle", context.viewerHandle);
 
   const iframe = document.createElement("iframe");
   iframe.src = iframeUrl.toString();
-  iframe.title = `Grok Play ${context.kind === "mahjong" ? "Mahjong" : "RPS"} game ${context.gameId}`;
+  const gameLabel = GAME_CATALOG[context.gameType].shortTitle;
+  iframe.title =
+    context.card === "watch"
+      ? `Spectate Grok Play ${gameLabel} game ${context.gameId}`
+      : `Grok Play ${gameLabel} game ${context.gameId}`;
   iframe.setAttribute("scrolling", "no");
   iframe.style.cssText = [
     "display:block",
@@ -115,17 +136,19 @@ function createGameHost(context: GameContext): HTMLElement {
 }
 
 function syncPost(post: HTMLElement): void {
-  const game = parseGameMarker(post.innerText);
+  const marker = parseCardMarker(post.innerText);
   const existingHost = post.querySelector<HTMLElement>(`[${HOST_ATTRIBUTE}]`);
 
-  if (!game) {
+  if (!marker) {
     existingHost?.remove();
     return;
   }
 
   const context: GameContext = {
-    gameId: game.gameId,
-    kind: game.kind,
+    card: marker.card,
+    gameId: marker.gameId,
+    gameType: marker.gameType,
+    hostAvatar: findAuthorAvatar(post),
     hostHandle: findAuthorHandle(post),
     viewerHandle: findViewerHandle(),
     theme: findPostTheme(post),
