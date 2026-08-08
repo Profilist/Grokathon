@@ -1,7 +1,6 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
-import { GameCard } from "./GameCard";
-import type { GameStatus } from "../../src/lobby";
+import { GameCard, type PreviewMode } from "./GameCard";
 import "./styles.css";
 
 const params = new URLSearchParams(window.location.search);
@@ -14,13 +13,17 @@ const root = document.getElementById("root");
 
 if (!root) throw new Error("Grok Play root element is missing");
 
-const previewStatus: GameStatus | null =
-  preview === "open" ||
-  preview === "ready" ||
-  preview === "playing" ||
-  preview === "complete"
-    ? preview
-    : null;
+const previewModes: PreviewMode[] = [
+  "open",
+  "full",
+  "joined",
+  "ready",
+  "playing",
+  "complete",
+];
+const previewStatus: PreviewMode | null = previewModes.includes(preview as PreviewMode)
+  ? (preview as PreviewMode)
+  : null;
 
 createRoot(root).render(
   <React.StrictMode>
