@@ -1,10 +1,12 @@
 import { useGameLobby, type GameLobbyState } from "./useGameLobby";
 import { ArenaBackdrop } from "./ArenaBackdrop";
 import { RpsArena3D } from "./RpsArena3D";
+import { SpectateCard } from "./SpectateCard";
 import { WAGER_STAKE_USD } from "./concept";
 import {
   getPlayerHasPlayed,
   getPlayerResult,
+  shouldShowSpectatorView,
   type GameLobby,
   type GameStatus,
   type RpsMove,
@@ -15,6 +17,7 @@ const MOVES: RpsMove[] = ["rock", "paper", "scissors"];
 
 interface GameCardProps {
   gameId: string;
+  hostAvatar: string | null;
   hostHandle: string;
   preview: GameStatus | null;
   theme: "light" | "dark";
@@ -137,6 +140,7 @@ function LobbyArena({
 
 export function GameCard({
   gameId,
+  hostAvatar,
   hostHandle,
   preview,
   theme,
@@ -150,6 +154,23 @@ export function GameCard({
     wagerCents: WAGER_AMOUNT * 100,
   });
   const state = preview ? previewState(gameId, hostHandle, viewerHandle, preview) : liveState;
+
+  if (preview === null && shouldShowSpectatorView(state.lobby, state.role)) {
+    return (
+      <SpectateCard
+        authorAvatar={hostAvatar}
+        authorHandle={hostHandle}
+        gameId={gameId}
+        gameType="rps"
+        initiallySpectating
+        lobbyState={state}
+        preview={null}
+        theme={theme}
+        viewerHandle={viewerHandle}
+      />
+    );
+  }
+
   const displayedHost = state.lobby?.host_handle ?? hostHandle;
   const displayedGuest = state.lobby?.guest_handle ?? null;
   const roundStarted =

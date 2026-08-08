@@ -56,6 +56,7 @@ createRoot(root).render(
     ) : (
       <GameCard
         gameId={gameId}
+        hostAvatar={hostAvatar}
         hostHandle={hostHandle}
         preview={previewStatus}
         theme={theme}

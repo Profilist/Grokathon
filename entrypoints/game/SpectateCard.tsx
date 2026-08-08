@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { RpsArena3D } from "./RpsArena3D";
-import { useGameLobby } from "./useGameLobby";
+import { useGameLobby, type GameLobbyState } from "./useGameLobby";
 import { useSpectate, type SpectateState } from "./useSpectate";
 import { WAGER_POT_USD, WAGER_STAKE_USD, formatUsd } from "./concept";
 import { GAME_CATALOG, type GameType } from "../../src/games/catalog";
@@ -19,6 +19,8 @@ interface SpectateCardProps {
   authorAvatar: string | null;
   gameId: string;
   gameType: GameType;
+  initiallySpectating?: boolean;
+  lobbyState?: GameLobbyState;
   preview: GameStatus | null;
   theme: "light" | "dark";
   viewerHandle: string | null;
@@ -266,24 +268,28 @@ export function SpectateCard({
   authorHandle,
   gameId,
   gameType,
+  initiallySpectating = false,
+  lobbyState: providedLobbyState,
   preview,
   theme,
   viewerHandle,
 }: SpectateCardProps) {
   const spec = GAME_CATALOG[gameType];
-  const lobbyState = useGameLobby({
+  const loadedLobbyState = useGameLobby({
     createIfMissing: false,
-    enabled: preview === null,
+    enabled: preview === null && !providedLobbyState,
     gameId,
     hostHandle: authorHandle,
     viewerHandle,
   });
+  const lobbyState = providedLobbyState ?? loadedLobbyState;
   const liveSpectate = useSpectate({
     enabled: preview === null,
     gameId,
+    initiallySpectating,
     viewerHandle,
   });
-  const [previewSpectating, setPreviewSpectating] = useState(false);
+  const [previewSpectating, setPreviewSpectating] = useState(initiallySpectating);
 
   const previewState = preview ? previewSpectateState(viewerHandle) : null;
   const spectate: SpectateState = previewState

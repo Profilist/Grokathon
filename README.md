@@ -110,7 +110,9 @@ nico vs allegra, winner takes the pot 👀
 
 The card shows the stakes, both players, the live round status, and how many people are watching. Clicking **Spectate** swaps the card into the spectate room: the same 3D arena in read-only mode, plus a live chat.
 
-- The spectator roster comes from Supabase Realtime Presence, so it empties on its own when people navigate away. You only appear in it after clicking **Spectate**.
+The separate marker is optional for RPS. Once a normal `[grokplay:<id>]` lobby is full, any viewer who is not one of the two seated Supabase users automatically enters the same spectator room. The host and guest continue to see their player controls. Use `[grokwatch:<id>]` when you want a separate promotional post that always opens as a spectator card.
+
+- The spectator roster comes from Supabase Realtime Presence, so it empties on its own when people navigate away. A full `[grokplay:<id>]` post enters the room immediately; on a separate `[grokwatch:<id>]` post, you appear after clicking **Spectate**.
 - Chat is stored in `spectator_messages` and delivered over Supabase Realtime. It is styled after an X reply thread but is not posted to X.
 - Spectators never see a move before both players lock in. Row Level Security keeps each player's choice private until the round resolves.
 
