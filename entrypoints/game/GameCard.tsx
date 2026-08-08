@@ -147,6 +147,7 @@ export function GameCard({
     gameId,
     hostHandle,
     viewerHandle,
+    wagerCents: WAGER_AMOUNT * 100,
   });
   const state = preview ? previewState(gameId, hostHandle, viewerHandle, preview) : liveState;
   const displayedHost = state.lobby?.host_handle ?? hostHandle;
