@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  extractProfileHandle,
   extractStatusHandle,
   inferThemeFromColor,
   parseGameMarker,
@@ -20,6 +21,19 @@ describe("parseGameMarker", () => {
     expect(parseGameMarker("grokplay:demo")).toBeNull();
     expect(parseGameMarker("[grokplay:bad id]")).toBeNull();
     expect(parseGameMarker("ordinary post")).toBeNull();
+  });
+});
+
+describe("extractProfileHandle", () => {
+  it("extracts the signed-in profile handle", () => {
+    expect(extractProfileHandle("/larris")).toBe("larris");
+    expect(extractProfileHandle("https://x.com/Profilist/")).toBe("Profilist");
+  });
+
+  it("rejects navigation and status paths", () => {
+    expect(extractProfileHandle("/home")).toBeNull();
+    expect(extractProfileHandle("/larris/status/123")).toBeNull();
+    expect(extractProfileHandle(null)).toBeNull();
   });
 });
 

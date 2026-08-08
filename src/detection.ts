@@ -1,5 +1,16 @@
 const GAME_MARKER_PATTERN = /\[grokplay:([a-z0-9][a-z0-9_-]{0,63})\]/i;
 const STATUS_PATH_PATTERN = /^\/([^/]+)\/status\/\d+(?:\/|$)/;
+const PROFILE_PATH_PATTERN = /^\/([a-z0-9_]{1,32})\/?$/i;
+const RESERVED_X_PATHS = new Set([
+  "compose",
+  "explore",
+  "home",
+  "i",
+  "messages",
+  "notifications",
+  "search",
+  "settings",
+]);
 
 export type XTheme = "light" | "dark";
 
@@ -24,6 +35,18 @@ export function extractStatusHandle(hrefs: string[]): string | null {
   }
 
   return null;
+}
+
+export function extractProfileHandle(href: string | null): string | null {
+  if (!href) return null;
+
+  try {
+    const handle = new URL(href, "https://x.com").pathname.match(PROFILE_PATH_PATTERN)?.[1];
+    if (!handle || RESERVED_X_PATHS.has(handle.toLowerCase())) return null;
+    return handle;
+  } catch {
+    return null;
+  }
 }
 
 export function inferThemeFromColor(color: string): XTheme | null {

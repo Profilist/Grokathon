@@ -1,5 +1,6 @@
 import { browser } from "wxt/browser";
 import {
+  extractProfileHandle,
   extractStatusHandle,
   inferThemeFromColor,
   parseGameMarker,
@@ -8,6 +9,7 @@ import {
 
 const POST_SELECTOR = 'article[data-testid="tweet"]';
 const HOST_ATTRIBUTE = "data-grokplay-host";
+const MOUNT_KEY_ATTRIBUTE = "data-grokplay-mount-key";
 
 function findPostTheme(post: HTMLElement): XTheme {
   let element: HTMLElement | null = post;
@@ -29,6 +31,19 @@ function findAuthorHandle(post: HTMLElement): string | null {
   return extractStatusHandle(hrefs);
 }
 
+function findViewerHandle(): string | null {
+  const profileLink = document.querySelector<HTMLAnchorElement>(
+    'a[data-testid="AppTabBar_Profile_Link"]',
+  );
+  const profileHandle = extractProfileHandle(profileLink?.getAttribute("href") ?? null);
+  if (profileHandle) return profileHandle;
+
+  const accountSwitcher = document.querySelector<HTMLElement>(
+    '[data-testid="SideNav_AccountSwitcher_Button"]',
+  );
+  return accountSwitcher?.innerText.match(/@([a-z0-9_]{1,32})/i)?.[1] ?? null;
+}
+
 function findActionBar(post: HTMLElement): HTMLElement | null {
   return (
     Array.from(post.querySelectorAll<HTMLElement>('[role="group"]')).find(
@@ -39,9 +54,26 @@ function findActionBar(post: HTMLElement): HTMLElement | null {
   );
 }
 
-function createGameHost(post: HTMLElement, gameId: string): HTMLElement {
+interface GameContext {
+  gameId: string;
+  hostHandle: string | null;
+  viewerHandle: string | null;
+  theme: XTheme;
+}
+
+function getMountKey(context: GameContext): string {
+  return [
+    context.gameId,
+    context.hostHandle ?? "",
+    context.viewerHandle ?? "",
+    context.theme,
+  ].join(":");
+}
+
+function createGameHost(context: GameContext): HTMLElement {
   const host = document.createElement("div");
-  host.setAttribute(HOST_ATTRIBUTE, gameId);
+  host.setAttribute(HOST_ATTRIBUTE, context.gameId);
+  host.setAttribute(MOUNT_KEY_ATTRIBUTE, getMountKey(context));
   host.style.cssText = [
     "display:block",
     "width:100%",
@@ -53,15 +85,15 @@ function createGameHost(post: HTMLElement, gameId: string): HTMLElement {
   ].join(";");
 
   const iframeUrl = new URL(browser.runtime.getURL("/game.html"));
-  iframeUrl.searchParams.set("gameId", gameId);
-  iframeUrl.searchParams.set("theme", findPostTheme(post));
+  iframeUrl.searchParams.set("gameId", context.gameId);
+  iframeUrl.searchParams.set("theme", context.theme);
 
-  const hostHandle = findAuthorHandle(post);
-  if (hostHandle) iframeUrl.searchParams.set("hostHandle", hostHandle);
+  if (context.hostHandle) iframeUrl.searchParams.set("hostHandle", context.hostHandle);
+  if (context.viewerHandle) iframeUrl.searchParams.set("viewerHandle", context.viewerHandle);
 
   const iframe = document.createElement("iframe");
   iframe.src = iframeUrl.toString();
-  iframe.title = `Grok Play game ${gameId}`;
+  iframe.title = `Grok Play game ${context.gameId}`;
   iframe.setAttribute("scrolling", "no");
   iframe.style.cssText = [
     "display:block",
@@ -84,10 +116,17 @@ function syncPost(post: HTMLElement): void {
     return;
   }
 
-  if (existingHost?.getAttribute(HOST_ATTRIBUTE) === gameId) return;
+  const context: GameContext = {
+    gameId,
+    hostHandle: findAuthorHandle(post),
+    viewerHandle: findViewerHandle(),
+    theme: findPostTheme(post),
+  };
+
+  if (existingHost?.getAttribute(MOUNT_KEY_ATTRIBUTE) === getMountKey(context)) return;
   existingHost?.remove();
 
-  const host = createGameHost(post, gameId);
+  const host = createGameHost(context);
   const actionBar = findActionBar(post);
 
   if (actionBar?.parentElement) {

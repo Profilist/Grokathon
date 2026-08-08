@@ -6,6 +6,7 @@ export default defineConfig({
     name: "Grok Play Feed Demo",
     version: "0.1.0",
     description: "Injects Grok Play game previews into marked X posts.",
+    host_permissions: ["https://*.supabase.co/*"],
     web_accessible_resources: [
       {
         resources: ["game.html"],
