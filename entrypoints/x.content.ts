@@ -77,10 +77,10 @@ function createGameHost(context: GameContext): HTMLElement {
   host.style.cssText = [
     "display:block",
     "width:100%",
-    "height:360px",
+    "height:420px",
     "margin:12px 0 4px",
     "overflow:hidden",
-    "border-radius:16px",
+    "border-radius:18px",
     "background:transparent",
   ].join(";");
 

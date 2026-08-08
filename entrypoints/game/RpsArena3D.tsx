@@ -1,25 +1,27 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import type { GameWinner, RpsMove } from "../../src/lobby";
+import { ArenaBackdrop } from "./ArenaBackdrop";
 
 type ArenaPhase = "selecting" | "waiting" | "spectating" | "complete";
 
+interface ResultDisplay {
+  handle: string | null;
+  text: string;
+}
+
 interface RpsArena3DProps {
-  canReplay: boolean;
-  canChoose: boolean;
   guestHandle: string;
   guestLocked: boolean;
   guestMove: RpsMove | null;
   hostHandle: string;
   hostLocked: boolean;
   hostMove: RpsMove | null;
-  isReplaying: boolean;
   isSubmitting: boolean;
-  onChoose: (move: RpsMove) => void;
-  onReplay: () => void;
   phase: ArenaPhase;
-  resultHeadline: string | null;
+  result: ResultDisplay | null;
   selectedMove: RpsMove | null;
+  wagerAmount: number;
   winner: GameWinner | null;
 }
 
@@ -194,28 +196,21 @@ function disposeScene(scene: THREE.Scene) {
 }
 
 export function RpsArena3D({
-  canReplay,
-  canChoose,
   guestHandle,
   guestLocked,
   guestMove,
   hostHandle,
   hostLocked,
   hostMove,
-  isReplaying,
   isSubmitting,
-  onChoose,
-  onReplay,
   phase,
-  resultHeadline,
+  result,
   selectedMove,
+  wagerAmount,
   winner,
 }: RpsArena3DProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const chooseRef = useRef(onChoose);
   const [webglFailed, setWebglFailed] = useState(false);
-
-  chooseRef.current = onChoose;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -238,10 +233,10 @@ export function RpsArena3D({
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.35;
-    renderer.setClearColor(0x03050b, 0);
+    renderer.setClearColor(0x000000, 0);
 
     const scene = new THREE.Scene();
-    scene.fog = new THREE.FogExp2(0x050712, 0.12);
+    scene.fog = new THREE.FogExp2(0x050712, 0.045);
     const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 50);
     camera.position.set(0, 1.05, 5.1);
     camera.lookAt(0, 0.02, 0);
@@ -256,32 +251,6 @@ export function RpsArena3D({
     const pinkLight = new THREE.PointLight(0xff3fbd, 16, 8, 2);
     pinkLight.position.set(2.4, 0.4, 1.1);
     scene.add(pinkLight);
-
-    const floor = new THREE.Mesh(
-      new THREE.CircleGeometry(2.45, 64),
-      new THREE.MeshBasicMaterial({ color: 0x070b17, transparent: true, opacity: 0.92 }),
-    );
-    floor.rotation.x = -Math.PI / 2;
-    floor.position.y = -0.66;
-    scene.add(floor);
-
-    const ringMaterial = new THREE.MeshBasicMaterial({
-      color: 0x339dff,
-      transparent: true,
-      opacity: 0.7,
-    });
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(1.42, 0.025, 12, 80), ringMaterial);
-    ring.rotation.x = Math.PI / 2;
-    ring.position.y = -0.62;
-    scene.add(ring);
-
-    const innerRing = new THREE.Mesh(
-      new THREE.TorusGeometry(0.82, 0.012, 10, 64),
-      new THREE.MeshBasicMaterial({ color: 0x7b57ff, transparent: true, opacity: 0.45 }),
-    );
-    innerRing.rotation.x = Math.PI / 2;
-    innerRing.position.y = -0.615;
-    scene.add(innerRing);
 
     const particlePositions = new Float32Array(120 * 3);
     for (let index = 0; index < particlePositions.length; index += 3) {
@@ -335,38 +304,6 @@ export function RpsArena3D({
       scene.add(hostResult, guestResult);
     }
 
-    const raycaster = new THREE.Raycaster();
-    const pointer = new THREE.Vector2();
-    let hoveredMove: RpsMove | null = null;
-
-    const findMove = (event: PointerEvent) => {
-      if (phase !== "selecting" || !canChoose) return null;
-      const bounds = canvas.getBoundingClientRect();
-      pointer.set(
-        ((event.clientX - bounds.left) / bounds.width) * 2 - 1,
-        -((event.clientY - bounds.top) / bounds.height) * 2 + 1,
-      );
-      raycaster.setFromCamera(pointer, camera);
-      const hit = raycaster.intersectObjects(selectionObjects, true)[0];
-      return (hit?.object.userData.move as RpsMove | undefined) ?? null;
-    };
-
-    const handlePointerMove = (event: PointerEvent) => {
-      hoveredMove = findMove(event);
-      canvas.style.cursor = hoveredMove ? "pointer" : "default";
-    };
-    const handlePointerLeave = () => {
-      hoveredMove = null;
-      canvas.style.cursor = "default";
-    };
-    const handlePointerUp = (event: PointerEvent) => {
-      const move = findMove(event);
-      if (move) chooseRef.current(move);
-    };
-    canvas.addEventListener("pointermove", handlePointerMove);
-    canvas.addEventListener("pointerleave", handlePointerLeave);
-    canvas.addEventListener("pointerup", handlePointerUp);
-
     const resize = () => {
       const width = Math.max(1, canvas.clientWidth);
       const height = Math.max(1, canvas.clientHeight);
@@ -388,19 +325,17 @@ export function RpsArena3D({
       resize();
       const seconds = time * 0.001;
       particles.rotation.y = seconds * 0.035;
-      ringMaterial.opacity = 0.48 + Math.sin(seconds * 2.4) * 0.18;
-      ring.rotation.z = seconds * 0.08;
-      innerRing.rotation.z = -seconds * 0.12;
 
       selectionObjects.forEach((object, index) => {
         if (!object.visible) return;
         const move = selectionMoves[index];
         const baseScale = object.userData.baseScale as number;
-        const hoverScale = baseScale * (hoveredMove === move ? 1.16 : phase === "waiting" ? 1.08 : 1);
+        const selected = selectedMove === move;
+        const hoverScale = baseScale * (selected ? 1.14 : phase === "waiting" ? 1.08 : 1);
         object.scale.lerp(new THREE.Vector3(hoverScale, hoverScale, hoverScale), 0.13);
         object.position.y = object.userData.baseY + (reducedMotion ? 0 : Math.sin(seconds * 1.8 + index) * 0.07);
         if (!reducedMotion) object.rotation.y += 0.006 + index * 0.0015;
-        setGlow(object, hoveredMove === move ? 1.55 : phase === "waiting" ? 1.25 : 0.85);
+        setGlow(object, selected ? 1.55 : phase === "waiting" ? 1.25 : 0.85);
       });
 
       if (hostResult && guestResult) {
@@ -424,83 +359,69 @@ export function RpsArena3D({
     return () => {
       renderer.setAnimationLoop(null);
       resizeObserver.disconnect();
-      canvas.removeEventListener("pointermove", handlePointerMove);
-      canvas.removeEventListener("pointerleave", handlePointerLeave);
-      canvas.removeEventListener("pointerup", handlePointerUp);
       disposeScene(scene);
       renderer.dispose();
     };
-  }, [canChoose, guestMove, hostMove, phase, selectedMove, winner]);
+  }, [guestMove, hostMove, phase, selectedMove, winner]);
 
   const selectedMeta = selectedMove ? MOVE_META[selectedMove] : null;
 
   return (
     <div className={`rps-arena rps-arena--${phase}`}>
+      <ArenaBackdrop />
+      <div className="arena-stage" aria-hidden>
+        <div className="arena-stage__dome" />
+        <div className="arena-stage__pad" />
+        <div className="arena-stage__ring" />
+      </div>
       <canvas ref={canvasRef} className="rps-arena__canvas" aria-hidden />
       {webglFailed ? <div className="rps-arena__fallback">3D preview unavailable</div> : null}
 
-      <div className="arena-scoreboard">
-        <span>
-          @{hostHandle.replace(/^@/, "")}
-          <small className={hostLocked ? "is-locked" : ""}>
-            {hostLocked ? "LOCKED" : "CHOOSING"}
-          </small>
-        </span>
-        <b>VS</b>
-        <span>
-          @{guestHandle.replace(/^@/, "")}
-          <small className={guestLocked ? "is-locked" : ""}>
-            {guestLocked ? "LOCKED" : "CHOOSING"}
-          </small>
-        </span>
-      </div>
-
-      {phase === "selecting" ? (
-        <div className="arena-move-controls" aria-label="Choose your move">
-          {(Object.keys(MOVE_META) as RpsMove[]).map((move) => (
-            <button
-              type="button"
-              key={move}
-              disabled={!canChoose || isSubmitting}
-              aria-label={`Choose ${MOVE_META[move].label}`}
-              onClick={() => onChoose(move)}
-            >
-              <span aria-hidden>{MOVE_META[move].emoji}</span>
-              {MOVE_META[move].label}
-            </button>
-          ))}
+      {phase !== "complete" ? (
+        <div className="arena-scoreboard">
+          <span>
+            @{hostHandle.replace(/^@/, "")}
+            <small className={hostLocked ? "is-locked" : ""}>
+              {hostLocked ? "Locked" : "Choosing"}
+            </small>
+          </span>
+          <b>vs</b>
+          <span>
+            @{guestHandle.replace(/^@/, "")}
+            <small className={guestLocked ? "is-locked" : ""}>
+              {guestLocked ? "Locked" : "Choosing"}
+            </small>
+          </span>
         </div>
       ) : null}
 
       {phase === "waiting" ? (
         <div className="arena-lock-copy" aria-live="polite">
-          <span aria-hidden>{selectedMeta?.emoji ?? "◆"}</span>
-          <strong>{isSubmitting ? "LOCKING MOVE…" : `${selectedMeta?.label ?? "MOVE"} LOCKED`}</strong>
+          <strong>{isSubmitting ? "Locking move…" : `${selectedMeta?.label ?? "Move"} locked`}</strong>
           <small>Waiting for opponent</small>
         </div>
       ) : null}
 
       {phase === "spectating" ? (
         <div className="arena-lock-copy">
-          <span aria-hidden>◈</span>
-          <strong>PLAYERS CHOOSING</strong>
+          <strong>Players choosing</strong>
           <small>Moves reveal together</small>
         </div>
       ) : null}
 
-      {phase === "complete" ? (
-        <div className="arena-result-copy" aria-live="polite">
-          <small>ROUND RESULT</small>
-          <strong>{resultHeadline}</strong>
-          <span>
-            {hostMove ? MOVE_META[hostMove].label : "—"} vs {guestMove ? MOVE_META[guestMove].label : "—"}
-          </span>
-          {canReplay ? (
-            <button type="button" disabled={isReplaying} onClick={onReplay}>
-              <span aria-hidden>↻</span>
-              {isReplaying ? "Resetting…" : "Play again"}
-            </button>
-          ) : null}
+      {phase === "complete" && result ? (
+        <div className="arena-result-overlay" aria-live="polite">
+          <small>Round Results</small>
+          <strong className="arena-result-overlay__headline">
+            {result.handle ? (
+              <>
+                <span className="arena-result-overlay__handle">{result.handle}</span> {result.text}
+              </>
+            ) : (
+              result.text
+            )}
+          </strong>
+          <span className="arena-result-overlay__payout">${wagerAmount}</span>
         </div>
       ) : null}
     </div>

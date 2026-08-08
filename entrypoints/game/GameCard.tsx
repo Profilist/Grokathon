@@ -1,11 +1,16 @@
 import { useGameLobby, type GameLobbyState } from "./useGameLobby";
+import { ArenaBackdrop } from "./ArenaBackdrop";
 import { RpsArena3D } from "./RpsArena3D";
 import {
   getPlayerHasPlayed,
   getPlayerResult,
   type GameLobby,
   type GameStatus,
+  type RpsMove,
 } from "../../src/lobby";
+
+const WAGER_AMOUNT = 50;
+const MOVES: RpsMove[] = ["rock", "paper", "scissors"];
 
 interface GameCardProps {
   gameId: string;
@@ -13,14 +18,6 @@ interface GameCardProps {
   preview: GameStatus | null;
   theme: "light" | "dark";
   viewerHandle: string | null;
-}
-
-function Avatar({ label, waiting = false }: { label: string; waiting?: boolean }) {
-  return (
-    <div className={`avatar${waiting ? " avatar--waiting" : ""}`} aria-hidden>
-      {waiting ? "?" : label.slice(0, 1).toUpperCase()}
-    </div>
-  );
 }
 
 function previewState(
@@ -78,50 +75,62 @@ function getStatusCopy(state: GameLobbyState, hostHandle: string): string {
   return "Lobby open";
 }
 
-function getButtonCopy(state: GameLobbyState): string {
+function getPrimaryActionCopy(state: GameLobbyState): string {
   if (state.isJoining) return "Joining…";
+  if (state.isReplaying) return "Resetting…";
   if (state.status === "error") return "Try again";
-  if (state.role === "host") return "Waiting for player";
-  if (state.canJoin) return "Join game";
-  return "Join unavailable";
+  if (state.canReplay) return "Play again";
+  if (state.role === "host") return "Waiting…";
+  if (state.canJoin) return "Join Game";
+  return "Join Game";
 }
 
-function LobbyPlayers({ host, guest }: { host: string; guest: string | null }) {
-  return (
-    <div className="players">
-      <div className="player">
-        <Avatar label={host} />
-        <strong>@{host.replace(/^@/, "")}</strong>
-        <span>Host</span>
-      </div>
-
-      <div className="versus" aria-label="versus">
-        VS
-      </div>
-
-      <div className={`player${guest ? "" : " player--waiting"}`}>
-        <Avatar label={guest ?? ""} waiting={!guest} />
-        <strong>{guest ? `@${guest.replace(/^@/, "")}` : "Waiting…"}</strong>
-        <span>{guest ? "Challenger" : "1 seat open"}</span>
-      </div>
-    </div>
-  );
-}
-
-function getResultHeadline(state: GameLobbyState) {
+function getResultDisplay(state: GameLobbyState) {
   const lobby = state.lobby!;
   const result = getPlayerResult(lobby, state.role);
-  const winningHandle = lobby.winner === "host" ? lobby.host_handle : lobby.guest_handle;
+
+  if (result === "draw" || lobby.winner === "draw") {
+    return { handle: null, text: "It's a draw" };
+  }
+
+  if (result === "won") {
+    return { handle: null, text: "You won!" };
+  }
+
+  if (result === "lost") {
+    return { handle: null, text: "You lost" };
+  }
+
+  const winningHandle =
+    lobby.winner === "host" ? lobby.host_handle : lobby.guest_handle;
+
+  return {
+    handle: winningHandle ? `@${winningHandle.replace(/^@/, "")}` : null,
+    text: "wins!",
+  };
+}
+
+function LobbyArena({
+  host,
+  guest,
+}: {
+  host: string;
+  guest: string | null;
+}) {
   return (
-    result === "won"
-      ? "You won!"
-      : result === "lost"
-        ? "You lost"
-        : result === "draw"
-          ? "It's a draw"
-          : lobby.winner === "draw"
-            ? "It's a draw"
-            : `@${winningHandle ?? "player"} wins!`
+    <div className="rps-arena rps-arena--lobby">
+      <ArenaBackdrop />
+      <div className="arena-scoreboard">
+        <span>@{host.replace(/^@/, "")}</span>
+        <b>vs</b>
+        <span>{guest ? `@${guest.replace(/^@/, "")}` : "Waiting…"}</span>
+      </div>
+      <div className="arena-stage" aria-hidden>
+        <div className="arena-stage__dome" />
+        <div className="arena-stage__pad" />
+        <div className="arena-stage__ring" />
+      </div>
+    </div>
   );
 }
 
@@ -155,85 +164,90 @@ export function GameCard({
         : hasPlayed
           ? "waiting"
           : "selecting";
-  const buttonEnabled = state.canJoin || state.status === "error";
+  const primaryEnabled =
+    state.canJoin || state.status === "error" || state.canReplay;
+  const moveEnabled = state.canSubmitMove && !state.isSubmittingMove;
+  const result = state.lobby?.status === "complete" ? getResultDisplay(state) : null;
 
-  const handleButtonClick = () => {
+  const handlePrimaryClick = () => {
     if (state.status === "error") state.retry();
+    else if (state.canReplay) void state.replay();
     else void state.join();
   };
 
   return (
     <main className="page" data-theme={theme}>
-      <section className="game-card" aria-label="Rock Paper Scissors game">
-        <header className="game-card__header">
-          <div className="brand">
-            <span className="brand__mark" aria-hidden>
-              ✦
-            </span>
-            <div>
-              <div className="brand__name">Grok Play</div>
-              <div className="brand__meta">Game #{gameId}</div>
+      <section className="game-card" aria-label="Grock Paper Scissors game">
+        <header className="game-card__top">
+          <div className="brand-col">
+            <div className="brand">
+              <span className="brand__mark" aria-hidden />
+              <span className="brand__name">Grok Play</span>
+            </div>
+            <div className="title-block">
+              <p className="eyebrow">Head - To - Head</p>
+              <h1>Grock Paper Scissors</h1>
+              <p className="status-line" aria-live="polite">
+                {getStatusCopy(state, displayedHost)}
+              </p>
             </div>
           </div>
-          <span className="wager-badge">Concept · $5 wager</span>
+          <div className="wager-box" aria-label={`$${WAGER_AMOUNT} wager`}>
+            <strong>${WAGER_AMOUNT}</strong>
+            <span>Wager</span>
+          </div>
         </header>
-
-        <div className="title-row">
-          <div>
-            <p className="eyebrow">HEAD-TO-HEAD</p>
-            <h1>Rock Paper Scissors</h1>
-          </div>
-          <div className={`lobby-status lobby-status--${state.status}`} aria-live="polite">
-            <span className="lobby-status__dot" />
-            {getStatusCopy(state, displayedHost)}
-          </div>
-        </div>
 
         {roundStarted && state.lobby ? (
           <RpsArena3D
-            canChoose={state.canSubmitMove}
             guestHandle={state.lobby.guest_handle ?? "challenger"}
             guestLocked={state.lobby.guest_has_played}
             guestMove={state.lobby.guest_move}
             hostHandle={state.lobby.host_handle}
             hostLocked={state.lobby.host_has_played}
             hostMove={state.lobby.host_move}
-            canReplay={state.canReplay}
-            isReplaying={state.isReplaying}
             isSubmitting={state.isSubmittingMove}
-            onChoose={(move) => void state.submitMove(move)}
-            onReplay={() => void state.replay()}
             phase={arenaPhase}
-            resultHeadline={state.lobby.status === "complete" ? getResultHeadline(state) : null}
+            result={result}
             selectedMove={state.myMove}
+            wagerAmount={WAGER_AMOUNT}
             winner={state.lobby.winner}
           />
         ) : (
-          <>
-            <LobbyPlayers host={displayedHost} guest={displayedGuest} />
-            <footer className="game-card__footer">
-              <div className="rules">
-                <span>One-round demo</span>
-                <span>Winner takes $10</span>
-              </div>
-              <button
-                type="button"
-                disabled={!buttonEnabled || state.isJoining}
-                aria-disabled={!buttonEnabled || state.isJoining}
-                onClick={handleButtonClick}
-              >
-                {getButtonCopy(state)}
-              </button>
-            </footer>
-          </>
+          <LobbyArena host={displayedHost} guest={displayedGuest} />
         )}
 
-        <p className={`prototype-note${state.error ? " prototype-note--error" : ""}`}>
-          {state.error ??
-            (state.isRealtimeConnected
-              ? "Live through Supabase Realtime · Concept only, no money is moved"
-              : "Connecting to Supabase Realtime · Concept only, no money is moved")}
-        </p>
+        <footer className="action-bar">
+          {MOVES.map((move) => {
+            const active = state.myMove === move;
+            const label = move.charAt(0).toUpperCase() + move.slice(1);
+            return (
+              <button
+                key={move}
+                type="button"
+                className={`move-btn${active ? " move-btn--active" : ""}`}
+                disabled={!moveEnabled}
+                aria-pressed={active}
+                onClick={() => void state.submitMove(move)}
+              >
+                {label}
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            className="primary-btn"
+            disabled={!primaryEnabled || state.isJoining || state.isReplaying}
+            aria-disabled={!primaryEnabled || state.isJoining || state.isReplaying}
+            onClick={handlePrimaryClick}
+          >
+            {getPrimaryActionCopy(state)}
+          </button>
+        </footer>
+
+        {state.error ? (
+          <p className="prototype-note prototype-note--error">{state.error}</p>
+        ) : null}
       </section>
     </main>
   );
