@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useGameLobby, type GameLobbyState } from "./useGameLobby";
 import { ArenaBackdrop } from "./ArenaBackdrop";
 import { RpsArena3D } from "./RpsArena3D";
+import { WAGER_STAKE_USD } from "./concept";
 import {
   getPlayerHasPlayed,
   getPlayerResult,
@@ -11,7 +12,7 @@ import {
 } from "../../src/lobby";
 import grokAvatar from "../../assets/grok.jpeg";
 
-const WAGER_AMOUNT = 50;
+const WAGER_AMOUNT = WAGER_STAKE_USD;
 const MOVES: RpsMove[] = ["rock", "paper", "scissors"];
 
 export type PreviewMode = GameStatus | "full" | "joined";
@@ -248,6 +249,7 @@ export function GameCard({
     gameId,
     hostHandle,
     viewerHandle,
+    wagerCents: WAGER_AMOUNT * 100,
   });
   const [isSpectating, setIsSpectating] = useState(false);
   const [showWagerConfirm, setShowWagerConfirm] = useState(preview === "joined");
@@ -443,7 +445,6 @@ export function GameCard({
             <span>Wager</span>
           </div>
         </header>
-
         {showPlayArena && state.lobby ? (
           <RpsArena3D
             guestHandle={state.lobby.guest_handle ?? "challenger"}

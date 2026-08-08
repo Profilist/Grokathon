@@ -3,13 +3,17 @@ import {
   extractProfileHandle,
   extractStatusHandle,
   inferThemeFromColor,
-  parseGameMarker,
+  parseCardMarker,
+  parseGameResizeMessage,
+  type CardKind,
   type XTheme,
 } from "../src/detection";
+import { GAME_CATALOG, type GameType } from "../src/games/catalog";
 
 const POST_SELECTOR = 'article[data-testid="tweet"]';
 const HOST_ATTRIBUTE = "data-grokplay-host";
 const MOUNT_KEY_ATTRIBUTE = "data-grokplay-mount-key";
+const EXTENSION_ORIGIN = new URL(browser.runtime.getURL("/")).origin;
 
 function findPostTheme(post: HTMLElement): XTheme {
   let element: HTMLElement | null = post;
@@ -29,6 +33,14 @@ function findAuthorHandle(post: HTMLElement): string | null {
     .filter((href): href is string => href !== null);
 
   return extractStatusHandle(hrefs);
+}
+
+function findAuthorAvatar(post: HTMLElement): string | null {
+  const image =
+    post.querySelector<HTMLImageElement>('[data-testid="Tweet-User-Avatar"] img') ??
+    post.querySelector<HTMLImageElement>('div[data-testid^="UserAvatar-Container-"] img');
+
+  return image?.src || null;
 }
 
 function findViewerHandle(): string | null {
@@ -55,7 +67,11 @@ function findActionBar(post: HTMLElement): HTMLElement | null {
 }
 
 interface GameContext {
+  /** Which card to render: the game itself, or the spectate view of it. */
+  card: CardKind;
   gameId: string;
+  gameType: GameType;
+  hostAvatar: string | null;
   hostHandle: string | null;
   viewerHandle: string | null;
   theme: XTheme;
@@ -63,8 +79,11 @@ interface GameContext {
 
 function getMountKey(context: GameContext): string {
   return [
+    context.card,
+    context.gameType,
     context.gameId,
     context.hostHandle ?? "",
+    context.hostAvatar ?? "",
     context.viewerHandle ?? "",
     context.theme,
   ].join(":");
@@ -73,6 +92,8 @@ function getMountKey(context: GameContext): string {
 function createGameHost(context: GameContext): HTMLElement {
   const host = document.createElement("div");
   host.setAttribute(HOST_ATTRIBUTE, context.gameId);
+  host.dataset.grokplayKind = context.gameType;
+  host.dataset.grokplayCard = context.card;
   host.setAttribute(MOUNT_KEY_ATTRIBUTE, getMountKey(context));
   host.style.cssText = [
     "display:block",
@@ -86,14 +107,21 @@ function createGameHost(context: GameContext): HTMLElement {
 
   const iframeUrl = new URL(browser.runtime.getURL("/game.html"));
   iframeUrl.searchParams.set("gameId", context.gameId);
+  iframeUrl.searchParams.set("gameKind", context.gameType);
+  iframeUrl.searchParams.set("card", context.card);
   iframeUrl.searchParams.set("theme", context.theme);
 
   if (context.hostHandle) iframeUrl.searchParams.set("hostHandle", context.hostHandle);
+  if (context.hostAvatar) iframeUrl.searchParams.set("hostAvatar", context.hostAvatar);
   if (context.viewerHandle) iframeUrl.searchParams.set("viewerHandle", context.viewerHandle);
 
   const iframe = document.createElement("iframe");
   iframe.src = iframeUrl.toString();
-  iframe.title = `Grok Play game ${context.gameId}`;
+  const gameLabel = GAME_CATALOG[context.gameType].shortTitle;
+  iframe.title =
+    context.card === "watch"
+      ? `Spectate Grok Play ${gameLabel} game ${context.gameId}`
+      : `Grok Play ${gameLabel} game ${context.gameId}`;
   iframe.setAttribute("scrolling", "no");
   iframe.style.cssText = [
     "display:block",
@@ -108,16 +136,19 @@ function createGameHost(context: GameContext): HTMLElement {
 }
 
 function syncPost(post: HTMLElement): void {
-  const gameId = parseGameMarker(post.innerText);
+  const marker = parseCardMarker(post.innerText);
   const existingHost = post.querySelector<HTMLElement>(`[${HOST_ATTRIBUTE}]`);
 
-  if (!gameId) {
+  if (!marker) {
     existingHost?.remove();
     return;
   }
 
   const context: GameContext = {
-    gameId,
+    card: marker.card,
+    gameId: marker.gameId,
+    gameType: marker.gameType,
+    hostAvatar: findAuthorAvatar(post),
     hostHandle: findAuthorHandle(post),
     viewerHandle: findViewerHandle(),
     theme: findPostTheme(post),
@@ -161,6 +192,21 @@ export default defineContentScript({
     observer.observe(document.body, { childList: true, subtree: true });
 
     ctx.addEventListener(window, "wxt:locationchange", scheduleScan);
+    ctx.addEventListener(window, "message", (event) => {
+      if (event.origin !== EXTENSION_ORIGIN) return;
+      const data = parseGameResizeMessage(event.data);
+      if (!data) return;
+
+      const host = Array.from(
+        document.querySelectorAll<HTMLElement>(`[${HOST_ATTRIBUTE}]`),
+      ).find(
+        (candidate) =>
+          candidate.getAttribute(HOST_ATTRIBUTE) === data.gameId &&
+          candidate.dataset.grokplayKind === data.kind &&
+          candidate.querySelector("iframe")?.contentWindow === event.source,
+      );
+      if (host) host.style.height = `${data.height}px`;
+    });
     ctx.onInvalidated(() => {
       observer.disconnect();
       document

@@ -1,4 +1,11 @@
-const GAME_MARKER_PATTERN = /\[grokplay:([a-z0-9][a-z0-9_-]{0,63})\]/i;
+import { gameTypeFromSlug, isGameType, type GameType } from "./games/catalog";
+
+// [grokplay:rps-demo]            play card, type from the slug prefix
+// [grokwatch:mahjong-friday]     spectate card
+// [grokplay:mahjong:table_12]    explicit type segment (original Mahjong syntax)
+// [grokplay:poker-night@25]      optional wager suffix, in dollars
+const CARD_MARKER_PATTERN =
+  /\[grok(play|watch):(?:(rps|mahjong|poker):)?([a-z0-9][a-z0-9_-]{0,63})(?:@\$?(\d{1,6}(?:\.\d{1,2})?))?\]/i;
 const STATUS_PATH_PATTERN = /^\/([^/]+)\/status\/\d+(?:\/|$)/;
 const PROFILE_PATH_PATTERN = /^\/([a-z0-9_]{1,32})\/?$/i;
 const RESERVED_X_PATHS = new Set([
@@ -14,8 +21,56 @@ const RESERVED_X_PATHS = new Set([
 
 export type XTheme = "light" | "dark";
 
-export function parseGameMarker(text: string): string | null {
-  return text.match(GAME_MARKER_PATTERN)?.[1] ?? null;
+/** `play` renders the game itself, `watch` renders the spectate card. */
+export type CardKind = "play" | "watch";
+
+export type GameReference = { kind: GameType; gameId: string };
+export type GameResizeMessage = GameReference & {
+  type: "grokplay:resize";
+  height: 360 | 560;
+};
+
+export interface CardMarker {
+  card: CardKind;
+  gameId: string;
+  gameType: GameType;
+  /** From an `@25` suffix. Null means "use the game type's default stake". */
+  wagerCents: number | null;
+}
+
+export function parseCardMarker(text: string): CardMarker | null {
+  const match = text.match(CARD_MARKER_PATTERN);
+  const keyword = match?.[1];
+  const gameId = match?.[3];
+  if (!keyword || !gameId) return null;
+
+  const explicitType = match[2]?.toLowerCase();
+  const wager = match[4];
+
+  // The keyword and type segments are matched case insensitively, but the id is
+  // the Postgres `slug` primary key and its check constraint preserves case, so
+  // keep it verbatim.
+  return {
+    card: keyword.toLowerCase() as CardKind,
+    gameId,
+    gameType: isGameType(explicitType) ? explicitType : gameTypeFromSlug(gameId),
+    wagerCents: wager === undefined ? null : Math.round(Number(wager) * 100),
+  };
+}
+
+export function parseGameResizeMessage(value: unknown): GameResizeMessage | null {
+  if (!value || typeof value !== "object") return null;
+
+  const candidate = value as Record<string, unknown>;
+  if (
+    candidate.type !== "grokplay:resize" ||
+    !isGameType(candidate.kind) ||
+    typeof candidate.gameId !== "string" ||
+    !/^[a-z0-9][a-z0-9_-]{0,63}$/i.test(candidate.gameId) ||
+    (candidate.height !== 360 && candidate.height !== 560)
+  ) return null;
+
+  return candidate as unknown as GameResizeMessage;
 }
 
 export function extractStatusHandle(hrefs: string[]): string | null {

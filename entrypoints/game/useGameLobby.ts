@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { RealtimeChannel, SupabaseClient, User } from "@supabase/supabase-js";
+import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
 import {
   canJoinLobby,
   fallbackPlayerHandle,
@@ -29,10 +29,16 @@ export type LobbyStatus =
   | "error";
 
 interface UseGameLobbyOptions {
+  /**
+   * Opens a lobby when the author views their own marked post. Spectate cards
+   * pass `false` so a `[grokwatch:…]` post never mints a lobby of its own.
+   */
+  createIfMissing?: boolean;
   enabled: boolean;
   gameId: string;
   hostHandle: string;
   viewerHandle: string | null;
+  wagerCents?: number;
 }
 
 export interface GameLobbyState {
@@ -76,7 +82,7 @@ async function fetchOwnMove(
   userId: string,
 ): Promise<RpsMove | null> {
   const { data, error } = await supabase
-    .from("game_moves")
+    .from("rps_moves")
     .select("choice")
     .eq("game_slug", gameId)
     .eq("user_id", userId)
@@ -87,28 +93,21 @@ async function fetchOwnMove(
 
 async function createHostLobby(
   supabase: SupabaseClient,
-  user: User,
   gameId: string,
   hostHandle: string,
+  wagerCents: number,
 ): Promise<GameLobby> {
   const { data, error } = await supabase
-    .from("games")
-    .insert({
-      slug: gameId,
-      host_user_id: user.id,
-      host_handle: hostHandle.replace(/^@/, ""),
-    })
-    .select("*")
-    .single();
+    .rpc("open_game", {
+      p_game_slug: gameId,
+      p_game_type: "rps",
+      p_wager_cents: wagerCents,
+      p_handle: hostHandle.replace(/^@/, ""),
+    });
 
   if (!error) {
     const lobby = normalizeLobby(data);
     if (lobby) return lobby;
-  }
-
-  if (error?.code === "23505") {
-    const existing = await fetchLobby(supabase, gameId);
-    if (existing) return existing;
   }
 
   throw error ?? new Error("Supabase returned an invalid lobby");
@@ -119,7 +118,7 @@ function friendlyError(error: unknown): string {
   if (/anonymous sign-ins are disabled/i.test(message)) {
     return "Enable anonymous sign-ins in Supabase Auth settings.";
   }
-  if (/relation.*game_moves.*does not exist/i.test(message)) {
+  if (/relation.*rps_moves.*does not exist/i.test(message)) {
     return "Run the RPS round migration in Supabase.";
   }
   if (/relation.*games.*does not exist/i.test(message)) {
@@ -129,10 +128,12 @@ function friendlyError(error: unknown): string {
 }
 
 export function useGameLobby({
+  createIfMissing = true,
   enabled,
   gameId,
   hostHandle,
   viewerHandle,
+  wagerCents = 500,
 }: UseGameLobbyOptions): GameLobbyState {
   const [lobby, setLobby] = useState<GameLobby | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
@@ -201,8 +202,8 @@ export function useGameLobby({
           });
 
         let currentLobby = await fetchLobby(supabase, gameId);
-        if (!currentLobby && handlesMatch(hostHandle, viewerHandle)) {
-          currentLobby = await createHostLobby(supabase, user, gameId, hostHandle);
+        if (!currentLobby && createIfMissing && handlesMatch(hostHandle, viewerHandle)) {
+          currentLobby = await createHostLobby(supabase, gameId, hostHandle, wagerCents);
         }
         if (disposed) return;
 
@@ -224,7 +225,7 @@ export function useGameLobby({
       setIsRealtimeConnected(false);
       if (channel) void supabase.removeChannel(channel);
     };
-  }, [attempt, enabled, gameId, hostHandle, viewerHandle]);
+  }, [attempt, createIfMissing, enabled, gameId, hostHandle, viewerHandle, wagerCents]);
 
   const role = useMemo(() => getLobbyRole(lobby, userId), [lobby, userId]);
   const canJoin = useMemo(() => canJoinLobby(lobby, userId), [lobby, userId]);
@@ -255,7 +256,7 @@ export function useGameLobby({
       const guestHandle = viewerHandle?.replace(/^@/, "") ?? fallbackPlayerHandle(userId);
       const { data, error: joinError } = await supabase.rpc("join_game", {
         p_game_slug: lobby.slug,
-        p_guest_handle: guestHandle,
+        p_handle: guestHandle,
       });
       if (joinError) throw joinError;
 
@@ -293,7 +294,7 @@ export function useGameLobby({
 
       try {
         const { data, error: moveError } = await supabase
-          .from("game_moves")
+          .from("rps_moves")
           .insert({ game_slug: lobby.slug, user_id: userId, choice: move })
           .select("choice")
           .single();
