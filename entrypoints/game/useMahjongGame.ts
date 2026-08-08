@@ -7,6 +7,11 @@ import {
   type MahjongPlayerView,
 } from "../../src/mahjong/types";
 import {
+  MAHJONG_REQUEST_TIMEOUT_MS,
+  mahjongTickDelay,
+  mahjongTickIdempotencyKey,
+} from "../../src/mahjong/sync";
+import {
   ensureAnonymousUser,
   getSupabaseClient,
   hasSupabaseConfig,
@@ -33,6 +38,7 @@ export type MahjongGameState = {
   isRealtimeConnected: boolean;
   join: () => Promise<void>;
   leave: () => Promise<void>;
+  fillBots: () => Promise<void>;
   start: () => Promise<void>;
   act: (action: LegalAction) => Promise<void>;
   retry: () => void;
@@ -64,39 +70,53 @@ export function useMahjongGame({ gameId, hostHandle, viewerHandle }: Options): M
     let disposed = false;
     let channel: RealtimeChannel | null = null;
     let tickTimer: number | null = null;
+    let scheduledTickVersion: number | null = null;
+    let tickInFlightVersion: number | null = null;
+    let highestTickVersionAttempted = -1;
+    let refreshInFlight: Promise<void> | null = null;
+    let refreshQueued = false;
 
     const applyView = (nextView: MahjongPlayerView) => {
       if (disposed) return;
       setView(nextView);
       setStatus("connected");
       setError(null);
-      if (tickTimer !== null) window.clearTimeout(tickTimer);
-      if (nextView.game.deadline_at) {
-        const serverOffset = Date.now() - Date.parse(nextView.serverNow);
-        const delay = Math.max(50, Date.parse(nextView.game.deadline_at) + serverOffset - Date.now() + 120);
+      if (tickTimer !== null && scheduledTickVersion !== nextView.game.state_version) {
+        window.clearTimeout(tickTimer);
+        tickTimer = null;
+        scheduledTickVersion = null;
+      }
+      const delay = mahjongTickDelay(nextView, document.visibilityState);
+      if (
+        delay !== null &&
+        tickTimer === null &&
+        tickInFlightVersion === null &&
+        nextView.game.state_version > highestTickVersionAttempted
+      ) {
+        const tickVersion = nextView.game.state_version;
+        scheduledTickVersion = tickVersion;
         tickTimer = window.setTimeout(() => {
-          void mutate("tick", nextView.game.state_version, undefined, nextView);
+          tickTimer = null;
+          scheduledTickVersion = null;
+          highestTickVersionAttempted = Math.max(highestTickVersionAttempted, tickVersion);
+          tickInFlightVersion = tickVersion;
+          void mutate("tick", tickVersion, undefined, nextView).finally(() => {
+            if (tickInFlightVersion === tickVersion) tickInFlightVersion = null;
+          });
         }, delay);
       }
     };
 
-    const invoke = async (body: Record<string, unknown>): Promise<MahjongPlayerView> => {
-      const { data, error: functionError } = await supabase.functions.invoke("mahjong-game", { body });
-      if (functionError) throw await normalizeFunctionError(functionError);
-      if (!isMahjongPlayerView(data)) throw new Error("Mahjong server returned an invalid player view.");
-      return data;
-    };
-
-    const refresh = async () => {
+    const performRefresh = async () => {
       try {
-        const nextView = await invoke({ operation: "view", gameId });
+        const nextView = await invokeMahjong(supabase, { operation: "view", gameId });
         applyView(nextView);
       } catch (cause) {
         const message = friendlyError(cause);
         if (/not found/i.test(message)) {
           if (handlesMatch(hostHandle, viewerHandle)) {
             const user = await ensureAnonymousUser(supabase);
-            const created = await invoke({
+            const created = await invokeMahjong(supabase, {
               operation: "create",
               gameId,
               handle: viewerHandle ?? hostHandle,
@@ -117,10 +137,26 @@ export function useMahjongGame({ gameId, hostHandle, viewerHandle }: Options): M
       }
     };
 
+    const refresh = (): Promise<void> => {
+      if (refreshInFlight) {
+        refreshQueued = true;
+        return refreshInFlight;
+      }
+
+      const pending = performRefresh().finally(() => {
+        if (refreshInFlight === pending) refreshInFlight = null;
+        if (refreshQueued && !disposed) scheduleRefresh();
+      });
+      refreshInFlight = pending;
+      return pending;
+    };
+
     const scheduleRefresh = () => {
+      refreshQueued = true;
       if (refreshTimerRef.current !== null) return;
       refreshTimerRef.current = window.setTimeout(() => {
         refreshTimerRef.current = null;
+        refreshQueued = false;
         void refresh();
       }, 70);
     };
@@ -132,11 +168,11 @@ export function useMahjongGame({ gameId, hostHandle, viewerHandle }: Options): M
       fallbackView: MahjongPlayerView,
     ) => {
       try {
-        const nextView = await invoke({
+        const nextView = await invokeMahjong(supabase, {
           operation,
           gameId,
           expectedVersion,
-          idempotencyKey: crypto.randomUUID(),
+          idempotencyKey: mahjongTickIdempotencyKey(gameId, expectedVersion),
           ...(action ? { action } : {}),
         });
         applyView(nextView);
@@ -204,7 +240,7 @@ export function useMahjongGame({ gameId, hostHandle, viewerHandle }: Options): M
   }, [attempt, gameId, hostHandle, viewerHandle]);
 
   const runMutation = useCallback(async (
-    operation: "join" | "leave" | "start" | "act",
+    operation: "join" | "leave" | "fillBots" | "start" | "act",
     action?: LegalAction,
   ) => {
     const supabase = getSupabaseClient();
@@ -213,20 +249,16 @@ export function useMahjongGame({ gameId, hostHandle, viewerHandle }: Options): M
     setError(null);
     try {
       const user = await ensureAnonymousUser(supabase);
-      const { data, error: functionError } = await supabase.functions.invoke("mahjong-game", {
-        body: {
-          operation,
-          gameId,
-          expectedVersion: view.game.state_version,
-          idempotencyKey: crypto.randomUUID(),
-          ...(operation === "join"
-            ? { handle: viewerHandle ?? fallbackPlayerHandle(user.id) }
-            : {}),
-          ...(action ? { action } : {}),
-        },
+      const data = await invokeMahjong(supabase, {
+        operation,
+        gameId,
+        expectedVersion: view.game.state_version,
+        idempotencyKey: crypto.randomUUID(),
+        ...(operation === "join"
+          ? { handle: viewerHandle ?? fallbackPlayerHandle(user.id) }
+          : {}),
+        ...(action ? { action } : {}),
       });
-      if (functionError) throw await normalizeFunctionError(functionError);
-      if (!isMahjongPlayerView(data)) throw new Error("Mahjong server returned an invalid player view.");
       setView(data);
       setStatus("connected");
     } catch (cause) {
@@ -246,10 +278,24 @@ export function useMahjongGame({ gameId, hostHandle, viewerHandle }: Options): M
     isRealtimeConnected,
     join: () => runMutation("join"),
     leave: () => runMutation("leave"),
+    fillBots: () => runMutation("fillBots"),
     start: () => runMutation("start"),
     act: (action: LegalAction) => runMutation("act", action),
     retry,
   }), [busy, error, isRealtimeConnected, retry, runMutation, status, view]);
+}
+
+async function invokeMahjong(
+  supabase: SupabaseClient,
+  body: Record<string, unknown>,
+): Promise<MahjongPlayerView> {
+  const { data, error: functionError } = await supabase.functions.invoke("mahjong-game", {
+    body,
+    timeout: MAHJONG_REQUEST_TIMEOUT_MS,
+  });
+  if (functionError) throw await normalizeFunctionError(functionError);
+  if (!isMahjongPlayerView(data)) throw new Error("Mahjong server returned an invalid player view.");
+  return data;
 }
 
 async function normalizeFunctionError(error: unknown): Promise<Error> {
@@ -264,6 +310,9 @@ async function normalizeFunctionError(error: unknown): Promise<Error> {
 }
 
 function friendlyError(error: unknown): string {
+  if (isAbortError(error)) {
+    return "The Mahjong server took too long to respond. Try again.";
+  }
   const message = error instanceof Error ? error.message : String(error);
   if (/anonymous sign-ins are disabled/i.test(message)) {
     return "Enable anonymous sign-ins in Supabase Auth settings.";
@@ -272,6 +321,14 @@ function friendlyError(error: unknown): string {
     return "Deploy the mahjong-game Edge Function before opening this table.";
   }
   return message;
+}
+
+function isAbortError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as { name?: unknown; message?: unknown; context?: unknown };
+  if (candidate.name === "AbortError") return true;
+  if (typeof candidate.message === "string" && /abort|timed out/i.test(candidate.message)) return true;
+  return candidate.context !== error && isAbortError(candidate.context);
 }
 
 function stableCreateKey(gameId: string, userId: string): string {

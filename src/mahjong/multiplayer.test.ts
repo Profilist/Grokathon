@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  advanceAutomatedPlayers,
   advanceExpiredState,
   applyPlayerAction,
   createMultiplayerRound,
@@ -80,6 +81,47 @@ describe("authoritative multiplayer Mahjong", () => {
       type: "drawDeclared",
       reason: "exhaustiveDraw",
     });
+  });
+
+  it("runs demo bots immediately until the human has a real decision", () => {
+    let state = createMultiplayerRound("solo-demo", 1_000);
+    const firstDiscard = legalActionsForPlayer(state, 0).find(
+      (action) => action.type === "discard",
+    );
+    expect(firstDiscard).toBeDefined();
+
+    state = applyPlayerAction(state, 0, firstDiscard!, 2_000);
+    const eventCountBeforeBots = state.events.length;
+    state = advanceAutomatedPlayers(state, [1, 2, 3], 2_000);
+
+    expect(state.events.length).toBeGreaterThan(eventCountBeforeBots);
+    expect(state.events.some((event) => event.type === "rulesError")).toBe(false);
+    if (state.phase === "turn") {
+      expect(state.round.currentPlayer).toBe(0);
+      expect(legalActionsForPlayer(state, 0).length).toBeGreaterThan(0);
+    } else if (state.phase === "claiming") {
+      expect(
+        legalActionsForPlayer(state, 0).some((action) => action.type !== "pass"),
+      ).toBe(true);
+    } else {
+      expect(state.round.ended).toBe(true);
+    }
+  });
+
+  it("does not play on behalf of a human who has a claim choice", () => {
+    let state = scenarioState();
+    const discarded = tile("c3", 3);
+    state.round.players[3].hand = [discarded];
+    state.round.players[0].hand = [tile("c1", 0), tile("c2", 0)];
+    state.round.currentPlayer = 3;
+    state.round.needsDiscard = 3;
+
+    state = applyPlayerAction(state, 3, { type: "discard", tileId: discarded.id }, 1_000);
+    state = advanceAutomatedPlayers(state, [1, 2, 3], 1_000);
+
+    expect(state.phase).toBe("claiming");
+    expect(state.pendingClaim?.responses[0]).toBeUndefined();
+    expect(legalActionsForPlayer(state, 0).some((action) => action.type === "claim")).toBe(true);
   });
 
   it("resolves simultaneous discard wins for multiple players", () => {

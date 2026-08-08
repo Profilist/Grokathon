@@ -204,6 +204,12 @@
   box-shadow: 0 7px 20px rgba(79, 232, 255, 0.2);
 }
 
+.mahjong-lobby-buttons button.is-bot {
+  border-color: color-mix(in srgb, var(--mahjong-violet) 68%, var(--border));
+  color: var(--mahjong-cyan);
+  background: color-mix(in srgb, var(--mahjong-violet) 14%, var(--surface));
+}
+
 .mahjong-lobby-buttons button.is-quiet {
   color: var(--secondary);
   background: transparent;

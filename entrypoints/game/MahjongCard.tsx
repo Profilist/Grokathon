@@ -82,6 +82,7 @@ export function MahjongCard({ gameId, hostHandle, theme, viewerHandle }: Props) 
               onAct={(action) => void state.act(action)}
               onJoin={() => void state.join()}
               onLeave={() => void state.leave()}
+              onFillBots={() => void state.fillBots()}
               onStart={() => void state.start()}
             />
           ) : (
@@ -91,6 +92,7 @@ export function MahjongCard({ gameId, hostHandle, theme, viewerHandle }: Props) 
               error={state.error}
               onJoin={() => void state.join()}
               onLeave={() => void state.leave()}
+              onFillBots={() => void state.fillBots()}
               onStart={() => void state.start()}
             />
           )
@@ -138,6 +140,7 @@ function MahjongLobby({
   error,
   onJoin,
   onLeave,
+  onFillBots,
   onStart,
 }: LobbyActions & { view: MahjongPlayerView }) {
   return (
@@ -154,8 +157,8 @@ function MahjongLobby({
       </div>
       <SeatGrid seats={displaySeats(view)} activeSeat={null} viewerSeat={view.seat} />
       <div className="mahjong-lobby__footer">
-        <p>{view.game.status === "complete" ? "The previous result stays visible until the next hand starts." : "Any seated player can deal once all four seats are filled."}</p>
-        <LobbyButtons view={view} busy={busy} onJoin={onJoin} onLeave={onLeave} onStart={onStart} />
+        <p>{view.game.status === "complete" ? "The previous result stays visible until the next hand starts." : view.canFillBots ? "Fill the open seats with bots for a quick solo game." : "Any seated player can deal once all four seats are filled."}</p>
+        <LobbyButtons view={view} busy={busy} onJoin={onJoin} onLeave={onLeave} onFillBots={onFillBots} onStart={onStart} />
       </div>
       {error ? <p className="mahjong-error">{error}</p> : null}
     </div>
@@ -169,6 +172,7 @@ function MahjongTable({
   onAct,
   onJoin,
   onLeave,
+  onFillBots,
   onStart,
 }: LobbyActions & { view: MahjongPlayerView; onAct: (action: LegalAction) => void }) {
   const replay = useMemo(() => roundToReplay(view.round!, view.game.last_event_sequence), [view]);
@@ -216,7 +220,7 @@ function MahjongTable({
       <ActionBar view={view} busy={busy} onAct={onAct} />
       <div className="mahjong-table-footer">
         <span>{view.game.wall_count ?? 0} tiles in the live wall</span>
-        <LobbyButtons view={view} busy={busy} onJoin={onJoin} onLeave={onLeave} onStart={onStart} compact />
+        <LobbyButtons view={view} busy={busy} onJoin={onJoin} onLeave={onLeave} onFillBots={onFillBots} onStart={onStart} compact />
       </div>
       {error ? <p className="mahjong-error">{error}</p> : null}
     </div>
@@ -311,7 +315,7 @@ function SeatGrid({ seats, activeSeat, viewerSeat }: {
         return (
           <div key={seat} className={`mahjong-seat${activeSeat === seat ? " is-active" : ""}${viewerSeat === seat ? " is-you" : ""}`}>
             <span className="mahjong-seat__wind">{seatWinds[seat][0]}</span>
-            <div><strong>{player ? `@${player.handle}` : "Open seat"}</strong><small>{seatWinds[seat]}{viewerSeat === seat ? " · You" : ""}</small></div>
+            <div><strong>{player ? `@${player.handle}` : "Open seat"}</strong><small>{seatWinds[seat]}{viewerSeat === seat ? " · You" : player?.is_bot ? " · Bot" : ""}</small></div>
           </div>
         );
       })}
@@ -345,12 +349,14 @@ function LobbyButtons({
   busy,
   onJoin,
   onLeave,
+  onFillBots,
   onStart,
   compact = false,
 }: Omit<LobbyActions, "error"> & { view: MahjongPlayerView; compact?: boolean }) {
   return (
     <div className={`mahjong-lobby-buttons${compact ? " is-compact" : ""}`}>
       {view.canJoin ? <button type="button" disabled={busy !== null} onClick={onJoin}>{busy === "join" ? "Joining…" : "Join table"}</button> : null}
+      {view.canFillBots ? <button className="is-bot" type="button" disabled={busy !== null} onClick={onFillBots}>{busy === "fillBots" ? "Filling…" : "Fill with bots"}</button> : null}
       {view.canStart ? <button className="is-primary" type="button" disabled={busy !== null} onClick={onStart}>{busy === "start" ? "Dealing…" : view.game.round_number ? "Start next hand" : "Deal tiles"}</button> : null}
       {view.seat !== null && !view.canStart ? <button className="is-quiet" type="button" disabled={busy !== null} onClick={onLeave}>{busy === "leave" ? "Leaving…" : "Leave"}</button> : null}
     </div>
@@ -392,6 +398,7 @@ type LobbyActions = {
   error: string | null;
   onJoin: () => void;
   onLeave: () => void;
+  onFillBots: () => void;
   onStart: () => void;
 };
 

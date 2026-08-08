@@ -3,6 +3,7 @@ import { createClient, type SupabaseClient, type User } from "@supabase/supabase
 import type { LegalAction } from "../_shared/mahjong/sim/actions.ts";
 import type { PlayerId } from "../_shared/mahjong/sim/state.ts";
 import {
+  advanceAutomatedPlayers,
   advanceExpiredState,
   applyPlayerAction,
   createMultiplayerRound,
@@ -18,7 +19,7 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-type MahjongOperation = "create" | "join" | "leave" | "start" | "view" | "act" | "tick";
+type MahjongOperation = "create" | "join" | "leave" | "fillBots" | "start" | "view" | "act" | "tick";
 
 type RequestBody = {
   operation?: MahjongOperation;
@@ -48,8 +49,9 @@ type GameRow = {
 type SeatRow = {
   game_slug: string;
   seat: PlayerId;
-  user_id: string;
+  user_id: string | null;
   handle: string;
+  is_bot: boolean;
   joined_at: string;
 };
 
@@ -66,10 +68,17 @@ Deno.serve(async (request: Request) => {
   if (request.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
   try {
-    const { user, admin } = await authenticatedClients(request);
     const body = (await request.json()) as RequestBody;
     const operation = parseOperation(body.operation);
     const gameId = parseGameId(body.gameId);
+    if (operation === "tick") {
+      const expectedVersion = parseExpectedVersion(body.expectedVersion);
+      const idempotencyKey = parseIdempotencyKey(body.idempotencyKey);
+      if (idempotencyKey !== tickIdempotencyKey(gameId, expectedVersion)) {
+        throw new HttpError(409, "This Mahjong card is out of date. Reload the extension.");
+      }
+    }
+    const { user, admin } = await authenticatedClients(request);
 
     if (operation === "create") {
       await callRpc(admin, "mahjong_create_game", {
@@ -109,8 +118,19 @@ Deno.serve(async (request: Request) => {
       return json(await loadPlayerView(admin, gameId, user.id));
     }
 
+    if (operation === "fillBots") {
+      await callRpc(admin, "mahjong_fill_bot_seats", {
+        p_game_slug: gameId,
+        p_user_id: user.id,
+        p_idempotency_key: idempotencyKey,
+        p_expected_version: expectedVersion,
+      });
+      return json(await loadPlayerView(admin, gameId, user.id));
+    }
+
     const loaded = await loadGame(admin, gameId);
     if (loaded.game.state_version !== expectedVersion) {
+      if (operation === "tick") return json(buildPlayerView(loaded, user.id));
       throw new HttpError(409, "Mahjong state changed; refresh and retry.");
     }
 
@@ -122,7 +142,10 @@ Deno.serve(async (request: Request) => {
         throw new HttpError(409, "A Mahjong hand is already in progress.");
       }
 
-      const nextState = createMultiplayerRound(crypto.randomUUID());
+      const nextState = advanceAutomatedPlayers(
+        createMultiplayerRound(crypto.randomUUID()),
+        botSeats(loaded.seats),
+      );
       await commitTransition({
         admin,
         game: loaded.game,
@@ -143,26 +166,43 @@ Deno.serve(async (request: Request) => {
     if (operation === "act") {
       const seat = seatForUser(loaded.seats, user.id);
       if (seat === null) throw new HttpError(403, "Only seated players can act.");
-      nextState = applyPlayerAction(loaded.state, seat, parseAction(body.action));
+      nextState = advanceAutomatedPlayers(
+        applyPlayerAction(loaded.state, seat, parseAction(body.action)),
+        botSeats(loaded.seats),
+      );
     } else if (operation === "tick") {
-      const advanced = advanceExpiredState(loaded.state);
-      if (!advanced.advanced) return json(buildPlayerView(loaded, user.id));
-      nextState = advanced.state;
+      const automated = advanceAutomatedPlayers(loaded.state, botSeats(loaded.seats));
+      if (automated !== loaded.state) {
+        nextState = automated;
+      } else {
+        const advanced = advanceExpiredState(loaded.state);
+        if (!advanced.advanced) return json(buildPlayerView(loaded, user.id));
+        nextState = advanceAutomatedPlayers(advanced.state, botSeats(loaded.seats));
+      }
     } else {
       throw new HttpError(400, "Unsupported Mahjong operation.");
     }
 
-    await commitTransition({
-      admin,
-      game: loaded.game,
-      userId: user.id,
-      idempotencyKey,
-      operation,
-      nextState,
-      previousEventCount: loaded.state.events.length,
-      roundNumber: loaded.game.round_number,
-      seats: loaded.seats,
-    });
+    try {
+      await commitTransition({
+        admin,
+        game: loaded.game,
+        userId: user.id,
+        idempotencyKey: operation === "tick"
+          ? tickIdempotencyKey(gameId, expectedVersion)
+          : idempotencyKey,
+        operation,
+        nextState,
+        previousEventCount: loaded.state.events.length,
+        roundNumber: loaded.game.round_number,
+        seats: loaded.seats,
+      });
+    } catch (error) {
+      if (operation === "tick" && isTransitionContentionError(error)) {
+        return json(await loadPlayerView(admin, gameId, user.id));
+      }
+      throw error;
+    }
     return json(await loadPlayerView(admin, gameId, user.id));
   } catch (error) {
     const status = error instanceof HttpError ? error.status : conflictStatus(error);
@@ -219,6 +259,10 @@ function buildPlayerView(loaded: LoadedGame, userId: string): Record<string, unk
     seat !== null &&
     loaded.seats.length === 4 &&
     !["playing", "claiming"].includes(loaded.game.status);
+  const canFillBots =
+    seat === 0 &&
+    loaded.seats.length < 4 &&
+    !["playing", "claiming"].includes(loaded.game.status);
 
   return {
     game: loaded.game,
@@ -226,6 +270,7 @@ function buildPlayerView(loaded: LoadedGame, userId: string): Record<string, unk
     seat,
     canJoin,
     canStart,
+    canFillBots,
     round: state ? redactRoundForPlayer(state, seat) : null,
     legalActions: state && seat !== null ? legalActionsForPlayer(state, seat) : [],
     recentEvents: state ? sanitizeEvents(state.events.slice(-12)) : [],
@@ -304,11 +349,26 @@ function seatForUser(seats: SeatRow[], userId: string): PlayerId | null {
   return seats.find((seat) => seat.user_id === userId)?.seat ?? null;
 }
 
+function botSeats(seats: SeatRow[]): PlayerId[] {
+  return seats.filter((seat) => seat.is_bot).map((seat) => seat.seat);
+}
+
+function tickIdempotencyKey(gameId: string, stateVersion: number): string {
+  return `tick:${gameId}:${stateVersion}`;
+}
+
+function isTransitionContentionError(error: unknown): boolean {
+  return /state changed|lock timeout|could not obtain lock/i.test(
+    error instanceof Error ? error.message : String(error),
+  );
+}
+
 function parseOperation(value: unknown): MahjongOperation {
   if (
     value === "create" ||
     value === "join" ||
     value === "leave" ||
+    value === "fillBots" ||
     value === "start" ||
     value === "view" ||
     value === "act" ||
@@ -389,6 +449,7 @@ function requiredEnv(name: string): string {
 
 function conflictStatus(error: unknown): number {
   const message = error instanceof Error ? error.message : String(error);
+  if (/only the human host/i.test(message)) return 403;
   return /state changed|already|full|progress|four players|not found|unavailable/i.test(message)
     ? 409
     : 500;

@@ -23,6 +23,7 @@ export type MahjongSeat = {
   game_slug: string;
   seat: PlayerId;
   handle: string;
+  is_bot: boolean;
   joined_at: string;
 };
 
@@ -32,6 +33,7 @@ export type MahjongPlayerView = {
   seat: PlayerId | null;
   canJoin: boolean;
   canStart: boolean;
+  canFillBots: boolean;
   round: RoundState | null;
   legalActions: LegalAction[];
   recentEvents: Array<Record<string, unknown> & { type: string }>;
@@ -50,6 +52,7 @@ export function isMahjongPlayerView(value: unknown): value is MahjongPlayerView 
       Array.isArray(view.seats) &&
       (view.seat === null || view.seat === 0 || view.seat === 1 || view.seat === 2 || view.seat === 3) &&
       Array.isArray(view.legalActions) &&
+      typeof view.canFillBots === "boolean" &&
       typeof view.serverNow === "string",
   );
 }

@@ -88,7 +88,7 @@ Four seats open. Who wants to play Mahjong?
 ```
 
 1. The post author views their own post to create seat zero.
-2. Three other extension installations or Chrome profiles click **Join table**.
+2. Either three other extension installations or Chrome profiles click **Join table**, or the host clicks **Fill with bots** for a solo test.
 3. Once four seats are occupied, any seated player can click **Deal tiles**.
 4. The active player clicks a tile in their hand to discard. Chow, pong, kong, win, and pass controls appear only when legal.
 5. Turns expire after 30 seconds and use the baseline legal-play bot. Claim windows expire after 10 seconds and unanswered claims pass.
@@ -123,6 +123,7 @@ A spectate post never opens a lobby of its own, so publish the `[grokplay:<id>]`
 - **Run the included migration:** execute the SQL migration in the Supabase SQL Editor.
 - **Waiting for the host:** the author must view their own post first while signed into the account that published it.
 - **Lobby already full:** use a fresh game ID in a new marker post.
+- **Testing alone:** the host can click **Fill with bots**, then **Deal tiles**, without creating extra Chrome profiles.
 - **Run the RPS round migration:** apply every migration in filename order if the lobby works but move submission fails.
 - **Deploy the Mahjong function:** run `supabase functions deploy mahjong-game` if the Mahjong card reports that its server is unavailable.
 - **Table looks compact:** join a seat or click **Open table**; the Mahjong iframe expands inside the post without opening a new page.

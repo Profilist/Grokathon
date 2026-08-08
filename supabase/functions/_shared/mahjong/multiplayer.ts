@@ -251,6 +251,61 @@ export function advanceExpiredState(
   return { state: applyPlayerAction(state, player, action, now), advanced: true };
 }
 
+export function advanceAutomatedPlayers(
+  current: MultiplayerMahjongState,
+  botPlayers: readonly PlayerId[],
+  now = Date.now(),
+  maxActions = 256,
+): MultiplayerMahjongState {
+  const bots = new Set(botPlayers);
+  let state = current;
+
+  for (let step = 0; step < maxActions; step += 1) {
+    if (state.phase === "complete" || state.round.ended) return state;
+
+    if (state.phase === "claiming" && state.pendingClaim) {
+      let acted = false;
+      for (const player of state.pendingClaim.eligiblePlayers) {
+        if (state.pendingClaim.responses[player]) continue;
+        const legalActions = legalActionsForPlayer(state, player);
+        const forcedPass =
+          bots.size > 0 &&
+          legalActions.length === 1 &&
+          legalActions[0]?.type === "pass";
+        if (!bots.has(player) && !forcedPass) continue;
+
+        const action = forcedPass
+          ? legalActions[0]!
+          : chooseLegalAction(
+              createBaselineBot(`Seat ${player + 1} demo bot`),
+              botContext(state.round, player, legalActions),
+            );
+        state = applyPlayerAction(state, player, action, now);
+        acted = true;
+        break;
+      }
+      if (acted) continue;
+      return state;
+    }
+
+    const player = state.round.currentPlayer;
+    if (!bots.has(player)) return state;
+    const legalActions = legalActionsForPlayer(state, player);
+    if (legalActions.length === 0) {
+      state = cloneMultiplayerState(state);
+      finishDraw(state, "exhaustiveDraw");
+      return state;
+    }
+    const action = chooseLegalAction(
+      createBaselineBot(`Seat ${player + 1} demo bot`),
+      botContext(state.round, player, legalActions),
+    );
+    state = applyPlayerAction(state, player, action, now);
+  }
+
+  throw new Error("Mahjong demo bots exceeded the automatic action limit.");
+}
+
 export function redactRoundForPlayer(
   state: MultiplayerMahjongState,
   player: PlayerId | null,
