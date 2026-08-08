@@ -1,4 +1,4 @@
-const GAME_MARKER_PATTERN = /\[grokplay:([a-z0-9][a-z0-9_-]{0,63})\]/i;
+const GAME_MARKER_PATTERN = /\[grokplay:(?:(mahjong):)?([a-z0-9][a-z0-9_-]{0,63})\]/i;
 const STATUS_PATH_PATTERN = /^\/([^/]+)\/status\/\d+(?:\/|$)/;
 const PROFILE_PATH_PATTERN = /^\/([a-z0-9_]{1,32})\/?$/i;
 const RESERVED_X_PATHS = new Set([
@@ -13,9 +13,33 @@ const RESERVED_X_PATHS = new Set([
 ]);
 
 export type XTheme = "light" | "dark";
+export type GameReference =
+  | { kind: "rps"; gameId: string }
+  | { kind: "mahjong"; gameId: string };
+export type GameResizeMessage = GameReference & {
+  type: "grokplay:resize";
+  height: 360 | 560;
+};
 
-export function parseGameMarker(text: string): string | null {
-  return text.match(GAME_MARKER_PATTERN)?.[1] ?? null;
+export function parseGameMarker(text: string): GameReference | null {
+  const match = text.match(GAME_MARKER_PATTERN);
+  if (!match?.[2]) return null;
+  return { kind: match[1] ? "mahjong" : "rps", gameId: match[2] };
+}
+
+export function parseGameResizeMessage(value: unknown): GameResizeMessage | null {
+  if (!value || typeof value !== "object") return null;
+
+  const candidate = value as Record<string, unknown>;
+  if (
+    candidate.type !== "grokplay:resize" ||
+    (candidate.kind !== "rps" && candidate.kind !== "mahjong") ||
+    typeof candidate.gameId !== "string" ||
+    !/^[a-z0-9][a-z0-9_-]{0,63}$/i.test(candidate.gameId) ||
+    (candidate.height !== 360 && candidate.height !== 560)
+  ) return null;
+
+  return candidate as unknown as GameResizeMessage;
 }
 
 export function extractStatusHandle(hrefs: string[]): string | null {

@@ -1,6 +1,6 @@
 # Grok Play Feed Demo
 
-A Chrome extension prototype that attaches a shared Rock Paper Scissors lobby and procedural Three.js arena to marked posts in the X feed. The post author opens a lobby, one other viewer can join, and both cards update through Supabase Realtime.
+A Chrome extension prototype that attaches playable 3D games to marked posts in the X feed. It supports the original two-player Rock Paper Scissors arena and a four-human Taiwanese 16-tile Mahjong table powered by Supabase Realtime and an authoritative Edge Function.
 
 ## 1. Configure Supabase
 
@@ -8,13 +8,21 @@ Create a Supabase project, then:
 
 1. Open **Authentication → Providers → Anonymous Sign-Ins** and enable anonymous sign-ins.
 2. Apply the migrations in [`supabase/migrations`](supabase/migrations) in filename order.
-3. Copy the environment template:
+3. Deploy the authoritative Mahjong function:
+
+```bash
+supabase functions deploy mahjong-game
+```
+
+Keep JWT verification enabled. The function receives the service-role key from Supabase's server-side environment; never add it to `.env` or the extension.
+
+4. Copy the environment template:
 
 ```bash
 cp .env.example .env
 ```
 
-4. Fill in the project URL and publishable key from **Project Settings → API**:
+5. Fill in the project URL and publishable key from **Project Settings → API**:
 
 ```dotenv
 WXT_SUPABASE_URL=https://your-project.supabase.co
@@ -40,7 +48,7 @@ After rebuilding, click the extension's **Reload** button on `chrome://extension
 
 For development, `pnpm dev` opens a separate Chrome profile with the extension installed automatically.
 
-## 3. Open and join a lobby
+## 3. Rock Paper Scissors
 
 The host publishes an X post with a unique game marker:
 
@@ -61,6 +69,25 @@ Use a new game ID for each lobby. IDs may contain letters, numbers, underscores,
 
 The extension uses Supabase anonymous authentication to give each installation a persistent player identity. This is a single-round concept game: there is no email, X OAuth, best-of-three scoring, wager, or real payment yet.
 
+## 4. Four-player 3D Mahjong
+
+Publish a separate marker for Mahjong:
+
+```text
+Four seats open. Who wants to play Mahjong?
+
+[grokplay:mahjong:mahjong-8f3k]
+```
+
+1. The post author views their own post to create seat zero.
+2. Three other extension installations or Chrome profiles click **Join table**.
+3. Once four seats are occupied, any seated player can click **Deal tiles**.
+4. The active player clicks a tile in their hand to discard. Chow, pong, kong, win, and pass controls appear only when legal.
+5. Turns expire after 30 seconds and use the baseline legal-play bot. Claim windows expire after 10 seconds and unanswered claims pass.
+6. At the end, all four hands are revealed, seats one through three reopen, and any seated player can start the next hand once the table refills.
+
+Opponent hands, the wall order, pending claims, and the deterministic seed are stored only in the private server state. Realtime publishes lobby summaries and sanitized events.
+
 ## Troubleshooting
 
 - **Supabase setup required:** create `.env`, rebuild, and reload the extension.
@@ -69,6 +96,8 @@ The extension uses Supabase anonymous authentication to give each installation a
 - **Waiting for the host:** the author must view their own post first while signed into the account that published it.
 - **Lobby already full:** use a fresh game ID in a new marker post.
 - **Run the RPS round migration:** apply every migration in filename order if the lobby works but move submission fails.
+- **Deploy the Mahjong function:** run `supabase functions deploy mahjong-game` if the Mahjong card reports that its server is unavailable.
+- **Table looks compact:** join a seat or click **Open table**; the Mahjong iframe expands inside the post without opening a new page.
 
 ## Checks
 
@@ -79,3 +108,5 @@ pnpm build
 ```
 
 The extension reads only visible post markup needed to find the marker, theme, post author, and signed-in profile handle. It does not read X cookies or use the X API.
+
+Mahjong code and tile-art licensing are documented in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).

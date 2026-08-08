@@ -4,23 +4,61 @@ import {
   extractStatusHandle,
   inferThemeFromColor,
   parseGameMarker,
+  parseGameResizeMessage,
 } from "./detection";
 
 describe("parseGameMarker", () => {
   it("extracts a game id from a marked post", () => {
-    expect(parseGameMarker("Who wants to play? [grokplay:demo]")).toBe(
-      "demo",
-    );
+    expect(parseGameMarker("Who wants to play? [grokplay:demo]")).toEqual({
+      kind: "rps",
+      gameId: "demo",
+    });
   });
 
   it("is case insensitive while preserving the id", () => {
-    expect(parseGameMarker("[GROKPLAY:Rps_12]")).toBe("Rps_12");
+    expect(parseGameMarker("[GROKPLAY:Rps_12]")).toEqual({
+      kind: "rps",
+      gameId: "Rps_12",
+    });
+  });
+
+  it("routes the explicit Mahjong marker separately", () => {
+    expect(parseGameMarker("Four seats open [grokplay:mahjong:table_12]")).toEqual({
+      kind: "mahjong",
+      gameId: "table_12",
+    });
   });
 
   it("rejects malformed and missing markers", () => {
     expect(parseGameMarker("grokplay:demo")).toBeNull();
     expect(parseGameMarker("[grokplay:bad id]")).toBeNull();
     expect(parseGameMarker("ordinary post")).toBeNull();
+  });
+});
+
+describe("parseGameResizeMessage", () => {
+  it("accepts only the two supported game sizes", () => {
+    expect(
+      parseGameResizeMessage({
+        type: "grokplay:resize",
+        kind: "mahjong",
+        gameId: "table_12",
+        height: 560,
+      }),
+    ).toEqual({
+      type: "grokplay:resize",
+      kind: "mahjong",
+      gameId: "table_12",
+      height: 560,
+    });
+  });
+
+  it("rejects invalid types, ids, kinds, and arbitrary heights", () => {
+    expect(parseGameResizeMessage(null)).toBeNull();
+    expect(parseGameResizeMessage({ type: "other", kind: "mahjong", gameId: "demo", height: 560 })).toBeNull();
+    expect(parseGameResizeMessage({ type: "grokplay:resize", kind: "chess", gameId: "demo", height: 560 })).toBeNull();
+    expect(parseGameResizeMessage({ type: "grokplay:resize", kind: "mahjong", gameId: "bad id", height: 560 })).toBeNull();
+    expect(parseGameResizeMessage({ type: "grokplay:resize", kind: "mahjong", gameId: "demo", height: 900 })).toBeNull();
   });
 });
 

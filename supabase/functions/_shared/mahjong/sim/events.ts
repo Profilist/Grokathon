@@ -1,0 +1,101 @@
+import type { PlayerId } from "./state.ts";
+import type { TileInstance } from "./tiles.ts";
+import type { WallBreak } from "./wall.ts";
+
+type EventMeta = {
+  phase: "setup" | "turn";
+  groupId: string;
+  turn: number;
+};
+
+export type GameEvent =
+  | (EventMeta & {
+      type: "roundStarted";
+      seed: string;
+      dealer: PlayerId;
+      wallBreak: WallBreak;
+      wallCount: number;
+      deadWallCount: number;
+      handCounts: [number, number, number, number];
+    })
+  | (EventMeta & {
+      type: "tileDrawn";
+      player: PlayerId;
+      tile: TileInstance;
+      replacement: boolean;
+      source: "liveWall" | "deadWall";
+      wallCount: number;
+      deadWallCount: number;
+    })
+  | (EventMeta & {
+      type: "tilesDrawn";
+      player: PlayerId;
+      tiles: TileInstance[];
+      source: "liveWall" | "deadWall";
+      replacement?: boolean;
+      wallCount: number;
+      deadWallCount: number;
+    })
+  | (EventMeta & {
+      type: "flowerExposed";
+      player: PlayerId;
+      tile?: TileInstance;
+      tiles: TileInstance[];
+    })
+  | (EventMeta & {
+      type: "tileDiscarded";
+      player: PlayerId;
+      tile: TileInstance;
+      handCount: number;
+    })
+  | (EventMeta & {
+      type: "claimMade";
+      player: PlayerId;
+      from: PlayerId;
+      claim: "chow" | "pong";
+      tile: TileInstance;
+      tiles: TileInstance[];
+    })
+  | (EventMeta & {
+      type: "kongDeclared";
+      player: PlayerId;
+      kong: "concealed" | "claimed" | "added";
+      tiles: TileInstance[];
+      from?: PlayerId;
+      tile?: TileInstance;
+      addedTile?: TileInstance;
+    })
+  | (EventMeta & {
+      type: "addedKongDeclared";
+      player: PlayerId;
+      tiles: TileInstance[];
+      addedTile: TileInstance;
+    })
+  | (EventMeta & {
+      type: "winDeclared";
+      player: PlayerId;
+      from?: PlayerId;
+      tile: TileInstance;
+    })
+  | (EventMeta & {
+      type: "drawDeclared";
+      reason: "exhaustiveDraw" | "turnLimit";
+      wallCount: number;
+      deadWallCount: number;
+      turn: number;
+    })
+  | (EventMeta & {
+      type: "rulesError";
+      message: string;
+      player: PlayerId;
+      handCount: number;
+      expected: number;
+    });
+
+export function eventMeta(phase: "setup" | "turn", turn: number): EventMeta {
+  return {
+    phase,
+    turn,
+    groupId: phase === "setup" ? "setup" : `turn-${turn}`,
+  };
+}

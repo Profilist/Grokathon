@@ -3,5 +3,6 @@
   "compilerOptions": {
     "jsx": "react-jsx",
     "noUncheckedIndexedAccess": true
-  }
+  },
+  "exclude": ["supabase/functions/mahjong-game"]
 }
