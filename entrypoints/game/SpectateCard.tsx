@@ -383,23 +383,19 @@ export function SpectateCard({
         <div className="spectate-session">
           {lobby ? (
             <RpsArena3D
-              canChoose={false}
-              canReplay={false}
               guestHandle={lobby.guest_handle ?? "challenger"}
               guestLocked={lobby.guest_has_played}
               guestMove={lobby.guest_move}
               hostHandle={lobby.host_handle}
               hostLocked={lobby.host_has_played}
               hostMove={lobby.host_move}
-              isReplaying={false}
               isSubmitting={false}
-              onChoose={() => undefined}
-              onReplay={() => undefined}
               phase={lobby.status === "complete" ? "complete" : "spectating"}
-              resultHeadline={
-                lobby.status === "complete" ? getSpectatorHeadline(lobby) : null
-              }
+              result={lobby.status === "complete"
+                ? { handle: null, text: getSpectatorHeadline(lobby) }
+                : null}
               selectedMove={null}
+              wagerAmount={WAGER_STAKE_USD}
               winner={lobby.winner}
             />
           ) : (
