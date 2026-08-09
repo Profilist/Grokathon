@@ -155,7 +155,6 @@ function MahjongLobby({
     <div className="mahjong-lobby">
       <div className="mahjong-title-row">
         <div>
-          <p className="eyebrow">Taiwanese · 16 Tile</p>
           <h1>{view.game.status === "complete" ? "Next hand is filling" : "Four-player Mahjong"}</h1>
         </div>
         <span className={`lobby-status lobby-status--${view.game.status}`}>
