@@ -49,7 +49,7 @@ export function MahjongCard({ gameId, hostHandle, theme, viewerHandle, wagerCent
   return (
     <main className="page mahjong-page" data-theme={theme}>
       <section className="game-card mahjong-card" aria-label="Taiwanese Mahjong game">
-        <MahjongHeader gameId={gameId} wagerCents={wagerCents} />
+        <MahjongHeader wagerCents={wagerCents} />
 
         {state.status === "loading" ? <CenteredState title="Shuffling the table…" /> : null}
         {state.status === "waiting_for_host" ? (
@@ -96,13 +96,7 @@ export function MahjongCard({ gameId, hostHandle, theme, viewerHandle, wagerCent
   );
 }
 
-function MahjongHeader({
-  gameId,
-  wagerCents,
-}: {
-  gameId: string;
-  wagerCents: number;
-}) {
+function MahjongHeader({ wagerCents }: { wagerCents: number }) {
   return (
     <header className="game-card__top mahjong-header">
       <div className="brand-col">
@@ -118,7 +112,6 @@ function MahjongHeader({
           <span className="brand__name">Grok Play</span>
         </div>
         <div className="title-block">
-          <p className="eyebrow">Table #{gameId}</p>
           <h1>Grokjong</h1>
         </div>
       </div>
@@ -354,9 +347,17 @@ function LobbyButtons({
 }: Omit<LobbyActions, "error"> & { view: MahjongPlayerView; compact?: boolean }) {
   return (
     <div className={`mahjong-lobby-buttons${compact ? " is-compact" : ""}`}>
-      {view.canJoin ? <button type="button" disabled={busy !== null} onClick={onJoin}>{busy === "join" ? "Joining…" : "Join table"}</button> : null}
+      {view.canJoin ? (
+        <button className="primary-btn" type="button" disabled={busy !== null} onClick={onJoin}>
+          {busy === "join" ? "Joining…" : "Join table"}
+        </button>
+      ) : null}
       {view.canFillBots ? <button className="is-bot" type="button" disabled={busy !== null} onClick={onFillBots}>{busy === "fillBots" ? "Filling…" : "Fill with bots"}</button> : null}
-      {view.canStart ? <button className="is-primary" type="button" disabled={busy !== null} onClick={onStart}>{busy === "start" ? "Dealing…" : view.game.round_number ? "Start next hand" : "Deal tiles"}</button> : null}
+      {view.canStart ? (
+        <button className="primary-btn" type="button" disabled={busy !== null} onClick={onStart}>
+          {busy === "start" ? "Dealing…" : view.game.round_number ? "Start next hand" : "Deal tiles"}
+        </button>
+      ) : null}
       {view.seat !== null && !view.canStart ? <button className="is-quiet" type="button" disabled={busy !== null} onClick={onLeave}>{busy === "leave" ? "Leaving…" : "Leave"}</button> : null}
     </div>
   );

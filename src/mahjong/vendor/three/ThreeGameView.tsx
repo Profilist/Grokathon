@@ -56,8 +56,8 @@ const sceneBackgroundColor = "#101514";
 const sceneToneMapping = THREE.ACESFilmicToneMapping;
 const sceneToneMappingExposure = 1.12;
 const cameraTarget: Vec3 = [0, 0, 0];
-/** Closest orbit distance relative to the default camera position (1.5 = 150% zoom). */
-const MAX_BOARD_ZOOM = 1.5;
+/** Closest orbit distance relative to the default camera position (2.5 = 250% zoom). */
+const MAX_BOARD_ZOOM = 2.5;
 const rapierRigidBodyType = {
   dynamic: 0,
   kinematicPosition: 2,
