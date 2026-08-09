@@ -185,10 +185,20 @@ export default defineContentScript({
       ).find(
         (candidate) =>
           candidate.getAttribute(HOST_ATTRIBUTE) === data.gameId &&
-          candidate.dataset.grokplayKind === data.kind &&
           candidate.querySelector("iframe")?.contentWindow === event.source,
       );
-      if (host) host.style.height = `${data.height}px`;
+      if (!host) return;
+
+      // A generic marker starts on the game picker with its initial type, but
+      // the saved listing can route the same iframe to another game. Trust the
+      // authenticated iframe window and stable game ID, then synchronize the
+      // host metadata with the game that is actually rendering.
+      host.dataset.grokplayKind = data.kind;
+      const iframe = host.querySelector<HTMLIFrameElement>("iframe");
+      if (iframe) {
+        iframe.title = `Grok Play ${GAME_CATALOG[data.kind].shortTitle} game ${data.gameId}`;
+      }
+      host.style.height = `${data.height}px`;
     });
     ctx.onInvalidated(() => {
       observer.disconnect();

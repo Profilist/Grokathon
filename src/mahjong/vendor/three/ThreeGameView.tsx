@@ -939,8 +939,9 @@ export function ThreeGameView({
             simulatorMode && cameraAutoRotate && !isCameraUserControlled
           }
           autoRotateSpeed={0.14}
-          // Rotate makes it easy to push side hands out of the short feed frame.
-          enableRotate={simulatorMode && pointerControlsEnabled}
+          // The fitted camera and polar limits keep the table framed while
+          // allowing players to inspect it from either side of the feed card.
+          enableRotate={pointerControlsEnabled}
           enableZoom={pointerControlsEnabled}
           enablePan={false}
           // Damping forces a perpetual render loop; keep it off in the feed card.

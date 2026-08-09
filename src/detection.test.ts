@@ -120,28 +120,31 @@ describe("parseCardTrigger", () => {
 });
 
 describe("parseGameResizeMessage", () => {
-  it("accepts only the two supported game sizes", () => {
+  it("accepts a measured game-card height", () => {
     expect(
       parseGameResizeMessage({
         type: "grokplay:resize",
         kind: "mahjong",
         gameId: "table_12",
-        height: 560,
+        height: 734,
       }),
     ).toEqual({
       type: "grokplay:resize",
       kind: "mahjong",
       gameId: "table_12",
-      height: 560,
+      height: 734,
     });
   });
 
-  it("rejects invalid types, ids, kinds, and arbitrary heights", () => {
+  it("rejects invalid types, ids, kinds, and unsafe heights", () => {
     expect(parseGameResizeMessage(null)).toBeNull();
     expect(parseGameResizeMessage({ type: "other", kind: "mahjong", gameId: "demo", height: 560 })).toBeNull();
     expect(parseGameResizeMessage({ type: "grokplay:resize", kind: "chess", gameId: "demo", height: 560 })).toBeNull();
     expect(parseGameResizeMessage({ type: "grokplay:resize", kind: "mahjong", gameId: "bad id", height: 560 })).toBeNull();
-    expect(parseGameResizeMessage({ type: "grokplay:resize", kind: "mahjong", gameId: "demo", height: 900 })).toBeNull();
+    expect(parseGameResizeMessage({ type: "grokplay:resize", kind: "mahjong", gameId: "demo", height: 239 })).toBeNull();
+    expect(parseGameResizeMessage({ type: "grokplay:resize", kind: "mahjong", gameId: "demo", height: 1601 })).toBeNull();
+    expect(parseGameResizeMessage({ type: "grokplay:resize", kind: "mahjong", gameId: "demo", height: 560.5 })).toBeNull();
+    expect(parseGameResizeMessage({ type: "grokplay:resize", kind: "mahjong", gameId: "demo", height: "560" })).toBeNull();
   });
 });
 

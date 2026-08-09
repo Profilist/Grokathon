@@ -6,6 +6,8 @@ import { gameTypeFromSlug, isGameType, type GameType } from "./games/catalog";
 const CARD_MARKER_PATTERN =
   /\[grokplay:(?:(rps|mahjong|poker):)?([a-z0-9][a-z0-9_-]{0,63})(?:@\$?(\d{1,6}(?:\.\d{1,2})?))?\]/i;
 const STATUS_PATH_PATTERN = /^\/([^/]+)\/status\/(\d+)(?:\/|$)/;
+const MIN_GAME_HEIGHT = 240;
+const MAX_GAME_HEIGHT = 1600;
 const PHRASE_TRIGGERS: ReadonlyArray<{ pattern: RegExp; gameType: GameType }> = [
   { pattern: /\bgrokjong\b/i, gameType: "mahjong" },
   { pattern: /\bgrok\s+paper\s+scissors\b/i, gameType: "rps" },
@@ -28,7 +30,7 @@ export type XTheme = "light" | "dark";
 export type GameReference = { kind: GameType; gameId: string };
 export type GameResizeMessage = GameReference & {
   type: "grokplay:resize";
-  height: 360 | 560;
+  height: number;
 };
 
 export interface CardMarker {
@@ -98,7 +100,10 @@ export function parseGameResizeMessage(value: unknown): GameResizeMessage | null
     !isGameType(candidate.kind) ||
     typeof candidate.gameId !== "string" ||
     !/^[a-z0-9][a-z0-9_-]{0,63}$/i.test(candidate.gameId) ||
-    (candidate.height !== 360 && candidate.height !== 560)
+    typeof candidate.height !== "number" ||
+    !Number.isInteger(candidate.height) ||
+    candidate.height < MIN_GAME_HEIGHT ||
+    candidate.height > MAX_GAME_HEIGHT
   ) return null;
 
   return candidate as unknown as GameResizeMessage;
