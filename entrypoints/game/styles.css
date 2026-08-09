@@ -49,6 +49,32 @@
   gap: 7px;
 }
 
+.mahjong-wager {
+  display: grid;
+  min-width: 48px;
+  padding: 4px 7px;
+  border-radius: 9px;
+  color: var(--text);
+  background: var(--surface);
+  text-align: center;
+}
+
+.mahjong-wager strong,
+.mahjong-wager small {
+  line-height: 1;
+}
+
+.mahjong-wager strong {
+  font-size: 11px;
+}
+
+.mahjong-wager small {
+  margin-top: 2px;
+  color: var(--secondary);
+  font-size: 7px;
+  text-transform: uppercase;
+}
+
 .mahjong-live {
   gap: 5px;
   color: var(--secondary);
@@ -1003,6 +1029,156 @@ h1 {
   color: #ff5d67;
 }
 
+/* Shared game creation --------------------------------------------------- */
+
+.game-setup-stage {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  border: 0.5px solid #ffffff;
+  border-radius: 16px;
+  isolation: isolate;
+  background: #050505;
+}
+
+.game-setup-stage .rps-arena__backdrop {
+  opacity: 0.72;
+}
+
+.game-setup-panel,
+.game-setup-waiting {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+}
+
+.game-setup-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(150px, 0.8fr);
+  gap: 12px;
+  align-items: center;
+  padding: 14px;
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.42));
+}
+
+.game-picker {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.game-picker__option {
+  display: flex;
+  min-width: 0;
+  min-height: 76px;
+  gap: 9px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 14px;
+  color: var(--text);
+  background: rgba(0, 0, 0, 0.58);
+  text-align: left;
+  cursor: pointer;
+}
+
+.game-picker__option.is-selected {
+  border-color: #ffffff;
+  background: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 0 24px rgba(0, 158, 247, 0.2);
+}
+
+.game-picker__emoji {
+  display: grid;
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.1);
+  font-size: 22px;
+}
+
+.game-picker__option strong,
+.game-picker__option small {
+  display: block;
+}
+
+.game-picker__option strong {
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.game-picker__option small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.wager-picker > span {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.wager-picker > div {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.wager-picker button {
+  min-height: 31px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 10px;
+  color: var(--text);
+  background: rgba(0, 0, 0, 0.58);
+  font-size: 11px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.wager-picker button.is-selected {
+  border-color: var(--accent);
+  color: #ffffff;
+  background: rgba(0, 158, 247, 0.34);
+}
+
+.game-setup-note {
+  grid-column: 1 / -1;
+  margin: -4px 0 0;
+  color: var(--muted);
+  font-size: 9px;
+  text-align: center;
+}
+
+.game-setup-waiting {
+  display: grid;
+  place-content: center;
+  gap: 5px;
+  padding: 18px;
+  background: rgba(0, 0, 0, 0.62);
+  text-align: center;
+}
+
+.game-setup-waiting small,
+.game-setup-waiting span {
+  color: var(--muted);
+}
+
+.game-setup-waiting strong {
+  font-size: 22px;
+}
+
+.game-setup-waiting span {
+  font-size: 11px;
+}
+
 /* Spectate card ---------------------------------------------------------- */
 
 .spectate-card {
@@ -1464,6 +1640,32 @@ h1 {
 
   .action-bar {
     gap: 6px;
+  }
+
+  .game-setup-panel {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .game-picker__option {
+    min-height: 58px;
+    padding: 7px;
+  }
+
+  .game-picker__emoji {
+    width: 30px;
+    height: 30px;
+    font-size: 17px;
+  }
+
+  .wager-picker > span,
+  .game-setup-note {
+    display: none;
+  }
+
+  .wager-picker > div {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .move-btn,

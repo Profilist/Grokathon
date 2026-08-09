@@ -12,6 +12,9 @@ import {
 
 const lobby: GameLobby = {
   slug: "demo",
+  game_type: "rps",
+  wager_cents: 5000,
+  seat_count: 2,
   host_user_id: "host-id",
   host_handle: "larris",
   guest_user_id: null,

@@ -3,7 +3,6 @@ import { useGameLobby, type GameLobbyState } from "./useGameLobby";
 import { ArenaBackdrop } from "./ArenaBackdrop";
 import { RpsArena3D } from "./RpsArena3D";
 import { SpectateCard } from "./SpectateCard";
-import { WAGER_STAKE_USD } from "./concept";
 import {
   getPlayerHasPlayed,
   getPlayerResult,
@@ -14,7 +13,6 @@ import {
 } from "../../src/lobby";
 import grokAvatar from "../../assets/grok.jpeg";
 
-const WAGER_AMOUNT = WAGER_STAKE_USD;
 const MOVES: RpsMove[] = ["rock", "paper", "scissors"];
 
 export type PreviewMode = GameStatus | "full" | "joined";
@@ -28,6 +26,7 @@ interface GameCardProps {
   preview: PreviewMode | null;
   theme: "light" | "dark";
   viewerHandle: string | null;
+  wagerCents: number;
 }
 
 function previewState(
@@ -65,6 +64,9 @@ function previewState(
 
   const lobby: GameLobby = {
     slug: gameId,
+    game_type: "rps",
+    wager_cents: 5000,
+    seat_count: 2,
     host_user_id: "preview-host",
     host_handle: hostHandle,
     guest_user_id: hasGuest ? "preview-guest" : null,
@@ -198,10 +200,10 @@ function LobbyArena({
       {mode === "wagerConfirm" ? (
         <div className="arena-money-overlay" aria-live="polite">
           <small className="arena-money-overlay__brand">X Money</small>
-          <strong className="arena-money-overlay__title">Wager secured</strong>
-          <span className="arena-money-overlay__amount">-${wagerAmount}</span>
+          <strong className="arena-money-overlay__title">Demo wager selected</strong>
+          <span className="arena-money-overlay__amount">${wagerAmount}</span>
           <span className="arena-money-overlay__detail">
-            Deducted from your X Money balance
+            Concept only · no funds moved
           </span>
         </div>
       ) : null}
@@ -247,13 +249,16 @@ export function GameCard({
   preview,
   theme,
   viewerHandle,
+  wagerCents,
 }: GameCardProps) {
+  const wagerAmount = wagerCents / 100;
   const liveState = useGameLobby({
+    createIfMissing: false,
     enabled: preview === null,
     gameId,
     hostHandle,
     viewerHandle,
-    wagerCents: WAGER_AMOUNT * 100,
+    wagerCents,
   });
   const [isSpectating, setIsSpectating] = useState(false);
   const [showWagerConfirm, setShowWagerConfirm] = useState(preview === "joined");
@@ -294,6 +299,7 @@ export function GameCard({
         preview={null}
         theme={theme}
         viewerHandle={viewerHandle}
+        wagerCents={wagerCents}
       />
     );
   }
@@ -460,8 +466,8 @@ export function GameCard({
               <h1>Grock Paper Scissors</h1>
             </div>
           </div>
-          <div className="wager-box" aria-label={`$${WAGER_AMOUNT} wager`}>
-            <strong>${WAGER_AMOUNT}</strong>
+          <div className="wager-box" aria-label={`$${wagerAmount} wager`}>
+            <strong>${wagerAmount}</strong>
             <span>Wager</span>
           </div>
         </header>
@@ -477,7 +483,7 @@ export function GameCard({
             phase={arenaPhase}
             result={result}
             selectedMove={state.myMove}
-            wagerAmount={WAGER_AMOUNT}
+            wagerAmount={wagerAmount}
             winner={state.lobby.winner}
           />
         ) : (
@@ -485,7 +491,7 @@ export function GameCard({
             host={displayedHost}
             guest={lobbyGuest}
             mode={lobbyMode}
-            wagerAmount={WAGER_AMOUNT}
+            wagerAmount={wagerAmount}
           />
         )}
 

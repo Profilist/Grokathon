@@ -1,6 +1,7 @@
-import React, { Suspense, lazy } from "react";
+import React from "react";
 import { createRoot } from "react-dom/client";
-import { GameCard, type PreviewMode } from "./GameCard";
+import type { PreviewMode } from "./GameCard";
+import { GameRouter } from "./GameRouter";
 import { SpectateCard } from "./SpectateCard";
 import type { GameStatus } from "../../src/lobby";
 import { isGameType, type GameType } from "../../src/games/catalog";
@@ -38,10 +39,6 @@ const spectatePreviewStatus: GameStatus | null = spectatePreviewModes.includes(
   ? (preview as GameStatus)
   : null;
 
-const MahjongCard = lazy(() =>
-  import("./MahjongCard").then((module) => ({ default: module.MahjongCard })),
-);
-
 createRoot(root).render(
   <React.StrictMode>
     {card === "watch" ? (
@@ -54,20 +51,12 @@ createRoot(root).render(
         theme={theme}
         viewerHandle={viewerHandle}
       />
-    ) : gameKind === "mahjong" ? (
-      <Suspense fallback={<main className="page" data-theme={theme} />}>
-        <MahjongCard
-          gameId={gameId}
-          hostHandle={hostHandle}
-          theme={theme}
-          viewerHandle={viewerHandle}
-        />
-      </Suspense>
     ) : (
-      <GameCard
+      <GameRouter
         gameId={gameId}
         hostAvatar={hostAvatar}
         hostHandle={hostHandle}
+        initialGameType={gameKind}
         preview={previewStatus}
         theme={theme}
         viewerHandle={viewerHandle}

@@ -6,7 +6,7 @@ Two markers render two different cards:
 
 | Marker | Card |
 | --- | --- |
-| `[grokplay:<id>]` | Head-to-head lobby: open a game, join it, play a round |
+| `[grokplay:<id>]` | Shared lobby: choose a game and wager, then play |
 | `[grokwatch:<id>]` | Spectate card: the stakes, the players, who is watching, and a live room with chat |
 
 ## 1. Configure Supabase
@@ -55,36 +55,37 @@ After rebuilding, click the extension's **Reload** button on `chrome://extension
 
 For development, `pnpm dev` opens a separate Chrome profile with the extension installed automatically.
 
-## 3. Rock Paper Scissors
+## 3. Create a game
 
-The host publishes an X post with a unique game marker:
+The host publishes an X post with one unique lobby marker:
 
 ```text
-Does anyone want to play Rock Paper Scissors for $5?
+Who wants to play?
 
-[grokplay:rps-8f3k]
+[grokplay:friday-8f3k]
 ```
 
-Use a new game ID for each lobby. IDs may contain letters, numbers, underscores, and hyphens.
+Use a new lobby ID each time. IDs may contain letters, numbers, underscores, and hyphens.
 
-1. While signed into the posting X account, the host views their own marked post. Their extension creates the Supabase lobby automatically.
-2. The teammate views the same post with the extension installed.
-3. The teammate clicks **Join game**.
-4. Both embedded cards update to **Choose your move** through Supabase Realtime.
-5. Each player picks an animated 3D Rock, Paper, or Scissors piece. Choices stay hidden until both players lock in.
-6. Both Three.js arenas reveal the moves and winner at the same time.
+1. While signed into the posting X account, the host views their own marked post.
+2. The host chooses **Rock Paper Scissors** or **Mahjong**, selects a $5, $10, $20, or $50 concept wager, and creates the game.
+3. Supabase binds that lobby ID to the selected game and wager. Everyone viewing the post transitions to the chosen game through Realtime.
+4. Other players join and play using the game-specific controls.
 
-The extension uses Supabase anonymous authentication to give each installation a persistent player identity. This is a single-round concept game: there is no email, X OAuth, best-of-three scoring, wager, or real payment yet.
+The extension uses Supabase anonymous authentication to give each installation a persistent player identity. Wagers are display metadata only: there is no email, X OAuth, X Money integration, escrow, or real payment yet.
+
+### Rock Paper Scissors
+
+After the host selects RPS, the teammate clicks **Join game**. Both embedded cards update through Supabase Realtime. Each player picks an animated 3D Rock, Paper, or Scissors piece; choices stay hidden until both players lock in, then both arenas reveal the moves and winner.
 
 ## 4. Four-player 3D Mahjong
 
-Publish a Mahjong marker. The game type comes from the slug prefix, so both of
-these open the same kind of table:
+Choose Mahjong from the setup screen attached to the same generic lobby marker:
 
 ```text
 Four seats open. Who wants to play Mahjong?
 
-[grokplay:mahjong-8f3k]
+[grokplay:friday-8f3k]
 ```
 
 1. The post author views their own post to create seat zero.
@@ -96,7 +97,7 @@ Four seats open. Who wants to play Mahjong?
 
 Opponent hands, the wall order, pending claims, and the deterministic seed are stored only in the private server state. Realtime publishes lobby summaries and sanitized events.
 
-The original explicit form, `[grokplay:mahjong:table_12]`, still works.
+Legacy explicit markers such as `[grokplay:mahjong:table_12]` still work and preselect Mahjong when the lobby has not been configured yet.
 
 ## 5. Spectate a game
 

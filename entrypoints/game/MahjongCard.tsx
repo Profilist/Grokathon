@@ -12,17 +12,19 @@ import type {
   RoundState,
 } from "../../src/mahjong/types";
 import { useMahjongGame } from "./useMahjongGame";
+import { formatCents } from "../../src/games/catalog";
 
 type Props = {
   gameId: string;
   hostHandle: string;
   theme: "light" | "dark";
   viewerHandle: string | null;
+  wagerCents: number;
 };
 
 const seatWinds = ["East", "South", "West", "North"] as const;
 
-export function MahjongCard({ gameId, hostHandle, theme, viewerHandle }: Props) {
+export function MahjongCard({ gameId, hostHandle, theme, viewerHandle, wagerCents }: Props) {
   const state = useMahjongGame({ gameId, hostHandle, viewerHandle });
   const [collapsed, setCollapsed] = useState(false);
   const shouldExpand = Boolean(
@@ -55,6 +57,7 @@ export function MahjongCard({ gameId, hostHandle, theme, viewerHandle }: Props) 
           connected={state.isRealtimeConnected}
           expanded={shouldExpand}
           onToggle={() => setCollapsed((value) => !value)}
+          wagerCents={wagerCents}
         />
 
         {state.status === "loading" ? <CenteredState title="Shuffling the table…" /> : null}
@@ -107,11 +110,13 @@ function MahjongHeader({
   connected,
   expanded,
   onToggle,
+  wagerCents,
 }: {
   gameId: string;
   connected: boolean;
   expanded: boolean;
   onToggle: () => void;
+  wagerCents: number;
 }) {
   return (
     <header className="game-card__header mahjong-header">
@@ -123,6 +128,10 @@ function MahjongHeader({
         </div>
       </div>
       <div className="mahjong-header__actions">
+        <span className="mahjong-wager">
+          <strong>{formatCents(wagerCents).replace(".00", "")}</strong>
+          <small>Wager</small>
+        </span>
         <span className={`mahjong-live${connected ? " is-live" : ""}`}>
           <span />{connected ? "Live" : "Connecting"}
         </span>

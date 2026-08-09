@@ -4,6 +4,9 @@ export type GameWinner = "host" | "guest" | "draw";
 
 export interface GameLobby {
   slug: string;
+  game_type: "rps";
+  wager_cents: number;
+  seat_count: 2;
   host_user_id: string;
   host_handle: string;
   guest_user_id: string | null;
@@ -80,6 +83,11 @@ export function isGameLobby(value: unknown): value is GameLobby {
   const row = value as Partial<GameLobby>;
   return (
     typeof row.slug === "string" &&
+    row.game_type === "rps" &&
+    typeof row.wager_cents === "number" &&
+    Number.isInteger(row.wager_cents) &&
+    row.wager_cents >= 0 &&
+    row.seat_count === 2 &&
     typeof row.host_user_id === "string" &&
     typeof row.host_handle === "string" &&
     (row.guest_user_id === null || typeof row.guest_user_id === "string") &&

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { RpsArena3D } from "./RpsArena3D";
 import { useGameLobby, type GameLobbyState } from "./useGameLobby";
 import { useSpectate, type SpectateState } from "./useSpectate";
-import { WAGER_POT_USD, WAGER_STAKE_USD, formatUsd } from "./concept";
+import { formatUsd } from "./concept";
 import { GAME_CATALOG, type GameType } from "../../src/games/catalog";
 import { handlesMatch, type GameLobby, type GameStatus } from "../../src/lobby";
 import {
@@ -24,6 +24,7 @@ interface SpectateCardProps {
   preview: GameStatus | null;
   theme: "light" | "dark";
   viewerHandle: string | null;
+  wagerCents?: number;
 }
 
 const WATCHER_FACE_LIMIT = 4;
@@ -248,6 +249,9 @@ function previewLobby(gameId: string, preview: GameStatus): GameLobby {
   const hasGuest = preview !== "open";
   return {
     slug: gameId,
+    game_type: "rps",
+    wager_cents: 5000,
+    seat_count: 2,
     host_user_id: "preview-host",
     host_handle: "nico",
     guest_user_id: hasGuest ? "preview-guest" : null,
@@ -273,6 +277,7 @@ export function SpectateCard({
   preview,
   theme,
   viewerHandle,
+  wagerCents,
 }: SpectateCardProps) {
   const spec = GAME_CATALOG[gameType];
   const loadedLobbyState = useGameLobby({
@@ -302,6 +307,8 @@ export function SpectateCard({
     : liveSpectate;
 
   const lobby = preview ? previewLobby(gameId, preview) : lobbyState.lobby;
+  const stakeUsd = (wagerCents ?? lobby?.wager_cents ?? spec.defaultWagerCents) / 100;
+  const potUsd = stakeUsd * 2;
   const hostHandle = lobby?.host_handle ?? null;
   const guestHandle = lobby?.guest_handle ?? null;
   const pill = getLivePill(lobby, authorHandle);
@@ -342,7 +349,7 @@ export function SpectateCard({
       <main className="page" data-theme={theme}>
         <section className="spectate-card" aria-label={`Spectate ${spec.title}`}>
           <div className="spectate-top">
-            <p className="spectate-hero">{formatUsd(WAGER_POT_USD)}</p>
+            <p className="spectate-hero">{formatUsd(potUsd)}</p>
             {faces}
           </div>
 
@@ -367,7 +374,7 @@ export function SpectateCard({
 
           <p className={`prototype-note${error ? " prototype-note--error" : ""}`}>
             {error ??
-              `${formatUsd(WAGER_STAKE_USD)} each · Concept only, no money is moved`}
+              `${formatUsd(stakeUsd)} each · Concept only, no money is moved`}
           </p>
         </section>
       </main>
@@ -381,7 +388,7 @@ export function SpectateCard({
           <button type="button" className="spectate-back" onClick={spectate.stopSpectating}>
             ‹ Back
           </button>
-          <span className="spectate-bar__stake">{formatUsd(WAGER_POT_USD)}</span>
+          <span className="spectate-bar__stake">{formatUsd(potUsd)}</span>
           {players}
           {livePill}
         </header>
@@ -401,7 +408,7 @@ export function SpectateCard({
                 ? { handle: null, text: getSpectatorHeadline(lobby) }
                 : null}
               selectedMove={null}
-              wagerAmount={WAGER_STAKE_USD}
+              wagerAmount={stakeUsd}
               winner={lobby.winner}
             />
           ) : (

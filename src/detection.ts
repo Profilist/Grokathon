@@ -1,9 +1,9 @@
 import { gameTypeFromSlug, isGameType, type GameType } from "./games/catalog";
 
-// [grokplay:rps-demo]            play card, type from the slug prefix
+// [grokplay:friday-table]        shared lobby; host chooses game and wager
 // [grokwatch:mahjong-friday]     spectate card
-// [grokplay:mahjong:table_12]    explicit type segment (original Mahjong syntax)
-// [grokplay:poker-night@25]      optional wager suffix, in dollars
+// [grokplay:mahjong:table_12]    legacy form; preselects Mahjong in setup
+// [grokplay:poker-night@25]      legacy metadata remains parse-compatible
 const CARD_MARKER_PATTERN =
   /\[grok(play|watch):(?:(rps|mahjong|poker):)?([a-z0-9][a-z0-9_-]{0,63})(?:@\$?(\d{1,6}(?:\.\d{1,2})?))?\]/i;
 const STATUS_PATH_PATTERN = /^\/([^/]+)\/status\/\d+(?:\/|$)/;
@@ -34,7 +34,7 @@ export interface CardMarker {
   card: CardKind;
   gameId: string;
   gameType: GameType;
-  /** From an `@25` suffix. Null means "use the game type's default stake". */
+  /** Legacy marker metadata. New lobbies choose the wager in the setup card. */
   wagerCents: number | null;
 }
 
