@@ -209,7 +209,7 @@ function MahjongTable({
 
       <ActionBar view={view} busy={busy} onAct={onAct} />
       <div className="mahjong-table-footer">
-        <LobbyButtons view={view} busy={busy} onJoin={onJoin} onLeave={onLeave} onFillBots={onFillBots} onStart={onStart} compact />
+        <LobbyButtons view={view} busy={busy} onJoin={onJoin} onLeave={onLeave} onFillBots={onFillBots} onStart={onStart} />
       </div>
       {error ? <p className="mahjong-error">{error}</p> : null}
     </div>
@@ -340,10 +340,9 @@ function LobbyButtons({
   onLeave,
   onFillBots,
   onStart,
-  compact = false,
-}: Omit<LobbyActions, "error"> & { view: MahjongPlayerView; compact?: boolean }) {
+}: Omit<LobbyActions, "error"> & { view: MahjongPlayerView }) {
   return (
-    <div className={`mahjong-lobby-buttons${compact ? " is-compact" : ""}`}>
+    <div className="mahjong-lobby-buttons">
       {view.canJoin ? (
         <button className="primary-btn" type="button" disabled={busy !== null} onClick={onJoin}>
           {busy === "join" ? "Joining…" : "Join table"}
