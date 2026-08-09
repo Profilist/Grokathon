@@ -268,16 +268,38 @@
   overflow: hidden;
   border: 0.5px solid var(--border);
   border-radius: 16px;
+  isolation: isolate;
   background: #050505;
+}
+
+.mahjong-stage__backdrop {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+
+.mahjong-stage::before {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.28);
+  pointer-events: none;
 }
 
 .mahjong-stage .three-viewer {
   position: absolute;
+  z-index: 2;
   inset: 0;
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  background: #101514;
+  background: transparent;
 }
 
 .mahjong-stage .three-viewer canvas,
@@ -285,7 +307,7 @@
   display: block;
   width: 100%;
   height: 100%;
-  background: #101514;
+  background: transparent;
 }
 
 .mahjong-stage .three-loading-overlay {
@@ -294,8 +316,8 @@
   z-index: 4;
   display: grid;
   place-items: center;
-  color: rgba(239, 250, 247, 0.7);
-  background: #101514;
+  color: rgba(255, 255, 255, 0.7);
+  background: rgba(5, 5, 5, 0.55);
   font-size: 10px;
   font-weight: 900;
   letter-spacing: 0.12em;
@@ -511,11 +533,12 @@
 
 .mahjong-dom-table {
   position: absolute;
+  z-index: 2;
   inset: 0;
   overflow: hidden;
   background:
-    radial-gradient(circle at center, rgba(32, 169, 140, 0.25), transparent 36%),
-    linear-gradient(145deg, #133b32, #071913);
+    radial-gradient(circle at center, rgba(32, 169, 140, 0.18), transparent 36%),
+    linear-gradient(145deg, rgba(19, 59, 50, 0.55), rgba(7, 25, 19, 0.35));
 }
 
 .mahjong-dom-table__center {

@@ -238,6 +238,7 @@ type ThreeGameViewProps = {
   tableFlipTransitionKey?: string;
   onTableFlipPreviewTransition?: (delayMs: number) => void;
   sceneTransitionOverlayActive?: boolean;
+  transparentBackground?: boolean;
 };
 
 export function ThreeGameView({
@@ -266,6 +267,7 @@ export function ThreeGameView({
   tableFlipTransitionKey,
   onTableFlipPreviewTransition,
   sceneTransitionOverlayActive = false,
+  transparentBackground = false,
 }: ThreeGameViewProps) {
   const [flickDebug, setFlickDebug] = useState(defaultFlickDebugSettings);
   const [lightingDebug, setLightingDebug] = useState(
@@ -671,7 +673,7 @@ export function ThreeGameView({
         shadows="percentage"
         dpr={renderDpr}
         gl={{
-          alpha: false,
+          alpha: transparentBackground,
           antialias: true,
           powerPreference: "high-performance",
         }}
@@ -679,6 +681,7 @@ export function ThreeGameView({
           position: "absolute",
           inset: 0,
           zIndex: 2,
+          background: transparentBackground ? "transparent" : undefined,
         }}
         camera={{
           position: cameraPosition,
@@ -690,6 +693,9 @@ export function ThreeGameView({
           gl.outputColorSpace = THREE.SRGBColorSpace;
           gl.toneMapping = sceneToneMapping;
           gl.toneMappingExposure = sceneToneMappingExposure;
+          if (transparentBackground) {
+            gl.setClearColor(0x000000, 0);
+          }
         }}
         onPointerDown={() => {
           if (pointerControlsEnabled) {
@@ -698,7 +704,9 @@ export function ThreeGameView({
         }}
       >
         <CameraPresetSync preset={cameraPreset} viewSeat={viewSeat} />
-        <color attach="background" args={[sceneBackgroundColor]} />
+        {transparentBackground ? null : (
+          <color attach="background" args={[sceneBackgroundColor]} />
+        )}
         <ambientLight intensity={lightingDebug.ambientIntensity} />
         <hemisphereLight
           intensity={lightingDebug.fillIntensity}
