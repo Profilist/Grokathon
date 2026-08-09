@@ -29,10 +29,8 @@ const seatWinds = ["East", "South", "West", "North"] as const;
 
 export function MahjongCard({ gameId, hostHandle, theme, viewerHandle, wagerCents }: Props) {
   const state = useMahjongGame({ gameId, hostHandle, viewerHandle });
-  const [collapsed, setCollapsed] = useState(false);
   const shouldExpand = Boolean(
     state.view &&
-      !collapsed &&
       (state.view.round || (state.view.seat !== null && state.view.seats.length > 1)),
   );
 
@@ -48,20 +46,10 @@ export function MahjongCard({ gameId, hostHandle, theme, viewerHandle, wagerCent
     );
   }, [gameId, shouldExpand]);
 
-  useEffect(() => {
-    if (state.view?.game.status === "playing") setCollapsed(false);
-  }, [state.view?.game.round_number, state.view?.game.status]);
-
   return (
     <main className="page mahjong-page" data-theme={theme}>
       <section className="game-card mahjong-card" aria-label="Taiwanese Mahjong game">
-        <MahjongHeader
-          gameId={gameId}
-          connected={state.isRealtimeConnected}
-          expanded={shouldExpand}
-          onToggle={() => setCollapsed((value) => !value)}
-          wagerCents={wagerCents}
-        />
+        <MahjongHeader gameId={gameId} wagerCents={wagerCents} />
 
         {state.status === "loading" ? <CenteredState title="Shuffling the table…" /> : null}
         {state.status === "waiting_for_host" ? (
@@ -110,15 +98,9 @@ export function MahjongCard({ gameId, hostHandle, theme, viewerHandle, wagerCent
 
 function MahjongHeader({
   gameId,
-  connected,
-  expanded,
-  onToggle,
   wagerCents,
 }: {
   gameId: string;
-  connected: boolean;
-  expanded: boolean;
-  onToggle: () => void;
   wagerCents: number;
 }) {
   return (
@@ -137,22 +119,13 @@ function MahjongHeader({
         </div>
         <div className="title-block">
           <p className="eyebrow">Table #{gameId}</p>
-          <h1>Grok Mahjong</h1>
+          <h1>Grokjong</h1>
         </div>
       </div>
       <div className="mahjong-header__aside">
         <div className="wager-box" aria-label={`${formatCents(wagerCents)} wager`}>
           <strong>{formatCents(wagerCents).replace(".00", "")}</strong>
           <span>Wager</span>
-        </div>
-        <div className="mahjong-header__actions">
-          <span className={`mahjong-live${connected ? " is-live" : ""}`}>
-            <span />
-            {connected ? "Live" : "Connecting"}
-          </span>
-          <button className="mahjong-expand" type="button" onClick={onToggle}>
-            {expanded ? "Collapse" : "Open table"}
-          </button>
         </div>
       </div>
     </header>
@@ -246,7 +219,6 @@ function MahjongTable({
 
       <ActionBar view={view} busy={busy} onAct={onAct} />
       <div className="mahjong-table-footer">
-        <span>{view.game.wall_count ?? 0} tiles in the live wall</span>
         <LobbyButtons view={view} busy={busy} onJoin={onJoin} onLeave={onLeave} onFillBots={onFillBots} onStart={onStart} compact />
       </div>
       {error ? <p className="mahjong-error">{error}</p> : null}

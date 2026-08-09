@@ -32,7 +32,7 @@ export function GameRouter({
     viewerHandle,
   });
 
-  if (preview !== null) {
+  if (preview !== null && initialGameType !== "mahjong") {
     return (
       <GameCard
         gameId={gameId}
@@ -46,6 +46,23 @@ export function GameRouter({
   }
 
   const listing = listingState.listing;
+  const showMahjong =
+    initialGameType === "mahjong" || listing?.game_type === "mahjong";
+
+  if (showMahjong && (listing?.game_type === "mahjong" || preview !== null || listingState.status === "unconfigured")) {
+    return (
+      <Suspense fallback={<main className="page" data-theme={theme} />}>
+        <MahjongCard
+          gameId={gameId}
+          hostHandle={hostHandle}
+          theme={theme}
+          viewerHandle={viewerHandle}
+          wagerCents={listing?.wager_cents ?? 2000}
+        />
+      </Suspense>
+    );
+  }
+
   if (!listing) {
     return (
       <GameSetupCard
@@ -55,20 +72,6 @@ export function GameRouter({
         state={listingState}
         theme={theme}
       />
-    );
-  }
-
-  if (listing.game_type === "mahjong") {
-    return (
-      <Suspense fallback={<main className="page" data-theme={theme} />}>
-        <MahjongCard
-          gameId={gameId}
-          hostHandle={hostHandle}
-          theme={theme}
-          viewerHandle={viewerHandle}
-          wagerCents={listing.wager_cents}
-        />
-      </Suspense>
     );
   }
 

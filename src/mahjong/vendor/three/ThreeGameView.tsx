@@ -56,6 +56,8 @@ const sceneBackgroundColor = "#101514";
 const sceneToneMapping = THREE.ACESFilmicToneMapping;
 const sceneToneMappingExposure = 1.12;
 const cameraTarget: Vec3 = [0, 0, 0];
+/** Closest orbit distance relative to the default camera position (1.5 = 150% zoom). */
+const MAX_BOARD_ZOOM = 1.5;
 const rapierRigidBodyType = {
   dynamic: 0,
   kinematicPosition: 2,
@@ -71,34 +73,45 @@ type CameraPreset = {
   target: Vec3;
 };
 
+function cameraDistance(position: Vec3): number {
+  return Math.hypot(position[0], position[1], position[2]);
+}
+
+function makeCameraPreset(
+  preset: Omit<CameraPreset, "minDistance" | "target"> & {
+    minDistance?: number;
+  },
+): CameraPreset {
+  const defaultDistance = cameraDistance(preset.position);
+  return {
+    ...preset,
+    minDistance: preset.minDistance ?? defaultDistance / MAX_BOARD_ZOOM,
+    target: cameraTarget,
+  };
+}
+
 const cameraPresets = {
-  desktop: {
+  desktop: makeCameraPreset({
     position: [0, 2.95, 7.35],
     fov: 40,
-    minDistance: 5.6,
     maxDistance: 10.4,
     minPolarAngle: Math.PI / 4.2,
     maxPolarAngle: Math.PI / 2.35,
-    target: cameraTarget,
-  },
-  narrow: {
+  }),
+  narrow: makeCameraPreset({
     position: [0, 4.8, 9.8],
     fov: 48,
-    minDistance: 8.2,
     maxDistance: 14.2,
     minPolarAngle: Math.PI / 4.6,
     maxPolarAngle: Math.PI / 2.6,
-    target: cameraTarget,
-  },
-  mobilePortrait: {
+  }),
+  mobilePortrait: makeCameraPreset({
     position: [0, 6.8, 9.8],
     fov: 54,
-    minDistance: 10,
     maxDistance: 15.6,
     minPolarAngle: Math.PI / 5.8,
     maxPolarAngle: Math.PI / 3,
-    target: cameraTarget,
-  },
+  }),
 } satisfies Record<string, CameraPreset>;
 
 type TilePose = {
@@ -850,6 +863,7 @@ export function ThreeGameView({
           enableZoom={pointerControlsEnabled}
           enablePan={false}
           enableDamping
+          zoomSpeed={0.85}
           target={cameraPreset.target}
           minDistance={cameraPreset.minDistance}
           maxDistance={cameraPreset.maxDistance}

@@ -5,14 +5,22 @@ import { GameRouter } from "./GameRouter";
 import { isGameType, type GameType } from "../../src/games/catalog";
 import "./styles.css";
 
+// Prefer search params; fall back to hash (Glass open_resource double-encodes `?` queries).
 const params = new URLSearchParams(window.location.search);
-const gameId = params.get("gameId") ?? "demo";
-const gameKindParam = params.get("gameKind");
+const hashParams = new URLSearchParams(
+  window.location.hash.startsWith("#")
+    ? window.location.hash.slice(1)
+    : window.location.hash,
+);
+const param = (key: string) => params.get(key) ?? hashParams.get(key);
+const gameId = param("gameId") ?? "demo";
+const gameKindParam = param("gameKind");
 const gameKind: GameType = isGameType(gameKindParam) ? gameKindParam : "rps";
-const hostHandle = params.get("hostHandle") ?? "host";
-const viewerHandle = params.get("viewerHandle");
-const theme = params.get("theme") === "light" ? "light" : "dark";
-const preview = import.meta.env.DEV ? params.get("preview") : null;
+const hostHandle = param("hostHandle") ?? "host";
+const viewerHandle = param("viewerHandle");
+const theme = param("theme") === "light" ? "light" : "dark";
+// Allow local static previews (production build via http.server) as well as DEV.
+const preview = param("preview");
 const root = document.getElementById("root");
 
 if (!root) throw new Error("Grok Play root element is missing");
