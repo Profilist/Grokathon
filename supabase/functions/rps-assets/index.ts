@@ -18,6 +18,8 @@ declare const EdgeRuntime: {
 const XAI_API_ROOT = "https://api.x.ai/v1";
 const TEXT_MODEL = "grok-4.5";
 const TEXTURE_MODEL = "grok-imagine-image";
+const PROGRAM_PROMPT_CACHE_KEY = "rps-assets-v3-silhouette-2026-08-08";
+const PROGRAM_SERVICE_TIER = "priority";
 const ASSET_BUCKET = "rps-generated-assets";
 const SIGNED_URL_SECONDS = 15 * 60;
 const MAX_PROGRAM_ATTEMPTS = 1;
@@ -78,6 +80,25 @@ type GeneratedAssetRow = {
   status: "generating" | "ready" | "failed";
   program: unknown;
   texture_path: string | null;
+};
+
+type XaiUsage = {
+  input_tokens?: number;
+  output_tokens?: number;
+  total_tokens?: number;
+  input_tokens_details?: { cached_tokens?: number };
+  output_tokens_details?: { reasoning_tokens?: number };
+  cost_in_usd_ticks?: number;
+};
+
+type ProgramGenerationTelemetry = {
+  serviceTier: string | null;
+  inputTokens: number | null;
+  cachedInputTokens: number | null;
+  outputTokens: number | null;
+  reasoningTokens: number | null;
+  totalTokens: number | null;
+  costUsdTicks: number | null;
 };
 
 class HttpError extends Error {
@@ -178,11 +199,30 @@ async function generateAsset({
   move: FreeformMove;
   prompt: string;
 }) {
+  const startedAt = performance.now();
+  let stage = "program";
+  let programMs: number | null = null;
+  let textureMs: number | null = null;
+  let uploadMs: number | null = null;
+  let databaseMs: number | null = null;
+  let programTelemetry: ProgramGenerationTelemetry | null = null;
+
   try {
-    const program = await generateProgram(prompt, move);
+    const programStartedAt = performance.now();
+    const generated = await generateProgram(prompt, move);
+    const program = generated.program;
+    programTelemetry = generated.telemetry;
+    programMs = elapsedMs(programStartedAt);
+
     let texturePath: string | null = null;
     if (program.surfaceDetailMode !== "geometry") {
+      stage = "texture";
+      const textureStartedAt = performance.now();
       const texture = await generateTexture(program);
+      textureMs = elapsedMs(textureStartedAt);
+
+      stage = "upload";
+      const uploadStartedAt = performance.now();
       texturePath = `${assetId}/texture${texture.extension}`;
       const { error: uploadError } = await admin.storage
         .from(ASSET_BUCKET)
@@ -191,8 +231,11 @@ async function generateAsset({
           upsert: false,
         });
       if (uploadError) throw uploadError;
+      uploadMs = elapsedMs(uploadStartedAt);
     }
 
+    stage = "database";
+    const databaseStartedAt = performance.now();
     const { error } = await admin
       .from("generated_assets")
       .update({
@@ -204,13 +247,34 @@ async function generateAsset({
       .eq("id", assetId)
       .eq("status", "generating");
     if (error) throw error;
+    databaseMs = elapsedMs(databaseStartedAt);
+
+    logAssetGeneration({
+      assetId,
+      move,
+      status: "ready",
+      surfaceDetailMode: program.surfaceDetailMode,
+      totalMs: elapsedMs(startedAt),
+      programMs,
+      textureMs,
+      uploadMs,
+      databaseMs,
+      ...programTelemetry,
+    });
   } catch (error) {
-    console.error(
-      JSON.stringify({
-        assetId,
-        error: error instanceof Error ? error.message : String(error),
-      }),
-    );
+    logAssetGeneration({
+      assetId,
+      move,
+      status: "failed",
+      failedStage: stage,
+      totalMs: elapsedMs(startedAt),
+      programMs,
+      textureMs,
+      uploadMs,
+      databaseMs,
+      ...programTelemetry,
+      error: error instanceof Error ? error.message : String(error),
+    }, true);
     const { error: updateError } = await admin
       .from("generated_assets")
       .update({
@@ -231,16 +295,23 @@ async function generateAsset({
 async function generateProgram(
   prompt: string,
   move: FreeformMove,
-): Promise<FreeformAssetProgram> {
+): Promise<{
+  program: FreeformAssetProgram;
+  telemetry: ProgramGenerationTelemetry;
+}> {
   let previousFailure = "";
   for (let attempt = 1; attempt <= MAX_PROGRAM_ATTEMPTS; attempt += 1) {
     const response = await xaiRequest<{
       output?: Array<
         { type?: string; content?: Array<{ type?: string; text?: string }> }
       >;
+      service_tier?: string;
+      usage?: XaiUsage;
     }>("/responses", {
       model: TEXT_MODEL,
       store: false,
+      prompt_cache_key: PROGRAM_PROMPT_CACHE_KEY,
+      service_tier: PROGRAM_SERVICE_TIER,
       input: [
         { role: "system", content: SYSTEM_PROMPT },
         {
@@ -271,7 +342,10 @@ async function generateProgram(
       if (program.move !== move) {
         throw new Error(`Program move must remain ${move}`);
       }
-      return program;
+      return {
+        program,
+        telemetry: extractProgramTelemetry(response),
+      };
     } catch (error) {
       previousFailure = error instanceof Error ? error.message : String(error);
     }
@@ -366,6 +440,45 @@ function extractResponseText(response: {
     if (text) return text;
   }
   throw new Error("Grok returned no structured program");
+}
+
+function extractProgramTelemetry(response: {
+  service_tier?: string;
+  usage?: XaiUsage;
+}): ProgramGenerationTelemetry {
+  return {
+    serviceTier: response.service_tier ?? null,
+    inputTokens: finiteNumber(response.usage?.input_tokens),
+    cachedInputTokens: finiteNumber(
+      response.usage?.input_tokens_details?.cached_tokens,
+    ),
+    outputTokens: finiteNumber(response.usage?.output_tokens),
+    reasoningTokens: finiteNumber(
+      response.usage?.output_tokens_details?.reasoning_tokens,
+    ),
+    totalTokens: finiteNumber(response.usage?.total_tokens),
+    costUsdTicks: finiteNumber(response.usage?.cost_in_usd_ticks),
+  };
+}
+
+function elapsedMs(startedAt: number): number {
+  return Math.round(performance.now() - startedAt);
+}
+
+function finiteNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function logAssetGeneration(
+  details: Record<string, unknown>,
+  failed = false,
+) {
+  const entry = JSON.stringify({ event: "rps_asset_generation", ...details });
+  if (failed) {
+    console.error(entry);
+  } else {
+    console.log(entry);
+  }
 }
 
 async function authenticatedClients(
