@@ -53,6 +53,24 @@ describe("freeform asset programs", () => {
     expect(() => validateFreeformAssetProgram(invalid)).toThrow(/attachment graph contains a cycle/);
   });
 
+  it("accepts useful multi-part attachment offsets and rejects oversized ones", () => {
+    const valid = structuredClone(freeformMeteor);
+    valid.parts[1]!.attachment.offset = [1.25, -0.8, 0.65];
+    expect(() => validateFreeformAssetProgram(valid)).not.toThrow();
+
+    valid.parts[1]!.attachment.offset = [2.01, 0, 0];
+    expect(() => validateFreeformAssetProgram(valid)).toThrow(/attachment is invalid/);
+  });
+
+  it("accepts non-unit anchor directions that the renderer normalizes", () => {
+    const valid = structuredClone(freeformMeteor);
+    valid.parts[1]!.attachment.parentAnchor.direction = [-1.85, 0.35, 0.25];
+    expect(() => validateFreeformAssetProgram(valid)).not.toThrow();
+
+    valid.parts[1]!.attachment.parentAnchor.direction = [-3.01, 0, 0];
+    expect(() => validateFreeformAssetProgram(valid)).toThrow(/anchor direction is invalid/);
+  });
+
   it("rejects self-intersecting extrusion outlines", () => {
     const invalid = structuredClone(freeformPaperDragon);
     const extrusion = invalid.parts[0]!.nodes.find(({ op }) => op === "extrude")!;

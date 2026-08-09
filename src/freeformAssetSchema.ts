@@ -2,6 +2,7 @@ export const MAX_FREEFORM_PARTS = 12;
 export const MAX_FREEFORM_MATERIALS = 6;
 export const MAX_FREEFORM_NODES = 80;
 export const MAX_FREEFORM_TRIANGLES = 48_000;
+export const MAX_FREEFORM_ATTACHMENT_OFFSET = 2;
 
 export type FreeformMove = "rock" | "paper" | "scissors";
 export type FreeformSurfaceDetailMode = "texture" | "decal" | "geometry";
@@ -134,7 +135,7 @@ const anchorSchema = {
       type: "string",
       enum: ["center", "top", "bottom", "left", "right", "front", "back", "surface"],
     },
-    direction: numberVectorSchema(-1, 1),
+    direction: numberVectorSchema(-3, 3),
   },
 };
 
@@ -308,7 +309,10 @@ export const FREEFORM_ASSET_PROGRAM_JSON_SCHEMA = {
               parentPartId: { type: "string", minLength: 0, maxLength: 32 },
               parentAnchor: anchorSchema,
               selfAnchor: anchorSchema,
-              offset: numberVectorSchema(-0.6, 0.6),
+              offset: numberVectorSchema(
+                -MAX_FREEFORM_ATTACHMENT_OFFSET,
+                MAX_FREEFORM_ATTACHMENT_OFFSET,
+              ),
               rotation: numberVectorSchema(-6.3, 6.3),
               scale: numberVectorSchema(0.05, 4),
             },
@@ -396,7 +400,7 @@ function validateAnchor(value: unknown, label: string) {
   if (!isRecord(value) || !ANCHOR_KINDS.has(value.kind as FreeformAnchorKind)) {
     throw new Error(`${label} is invalid`);
   }
-  if (!vectorIn(value.direction, 3, -1, 1)) throw new Error(`${label} direction is invalid`);
+  if (!vectorIn(value.direction, 3, -3, 3)) throw new Error(`${label} direction is invalid`);
   if (value.kind === "surface" && Math.hypot(...(value.direction as Vec3)) < 0.1) {
     throw new Error(`${label} surface direction cannot be zero`);
   }
@@ -623,7 +627,12 @@ export function validateFreeformAssetProgram(value: unknown): FreeformAssetProgr
     const attachment = part.attachment;
     if (
       typeof attachment.parentPartId !== "string" ||
-      !vectorIn(attachment.offset, 3, -0.6, 0.6) ||
+      !vectorIn(
+        attachment.offset,
+        3,
+        -MAX_FREEFORM_ATTACHMENT_OFFSET,
+        MAX_FREEFORM_ATTACHMENT_OFFSET,
+      ) ||
       !vectorIn(attachment.rotation, 3, -6.3, 6.3) ||
       !vectorIn(attachment.scale, 3, 0.05, 4)
     ) {

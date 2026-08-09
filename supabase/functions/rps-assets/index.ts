@@ -20,7 +20,7 @@ const TEXT_MODEL = "grok-4.5";
 const TEXTURE_MODEL = "grok-imagine-image";
 const ASSET_BUCKET = "rps-generated-assets";
 const SIGNED_URL_SECONDS = 15 * 60;
-const MAX_PROGRAM_ATTEMPTS = 2;
+const MAX_PROGRAM_ATTEMPTS = 1;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -46,6 +46,7 @@ Build coherent shapes with a flat node graph inside each material part:
 - Modifiers: twist, bend, noise.
 - Every part must be one connected solid. CSG inputs must overlap.
 - Exactly one root part has parentPartId "". Other parts attach to an earlier semantic part.
+- Every attachment offset, rotation, scale, and anchor direction is exactly three JSON numbers. Root attachment offset and rotation are [0,0,0] with scale [1,1,1]. Keep attachment offsets between -2 and 2 and anchor direction components between -3 and 3. Always write decimal points; never split 0.6 into 0,6.
 - Keep a recognizable silhouette with 1-6 parts and 1-8 nodes per part.
 - Y is up and the thumbnail camera looks from +Z.
 - Use resolution 20-24 and keep coordinates roughly within -1.5 to 1.5.
@@ -246,7 +247,7 @@ async function generateProgram(
           strict: true,
         },
       },
-    }, 55_000);
+    }, 120_000);
 
     try {
       const program = validateFreeformAssetProgram(
