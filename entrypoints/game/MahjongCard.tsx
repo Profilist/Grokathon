@@ -40,7 +40,7 @@ export function MahjongCard({ gameId, hostHandle, theme, viewerHandle, wagerCent
         type: "grokplay:resize",
         kind: "mahjong",
         gameId,
-        height: shouldExpand ? 560 : 360,
+        height: shouldExpand ? 620 : 360,
       },
       "https://x.com",
     );

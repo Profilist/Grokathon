@@ -244,12 +244,11 @@
 .mahjong-stage {
   position: relative;
   flex: 1 1 auto;
-  min-height: 330px;
+  min-height: 380px;
   overflow: hidden;
   border: 0.5px solid var(--border);
   border-radius: 16px;
   isolation: isolate;
-  contain: layout paint;
   background: #000;
 }
 
@@ -325,9 +324,9 @@
 .mahjong-seat-labels {
   position: absolute;
   z-index: 6;
-  inset: 8px;
+  inset: 10px 14px;
   color: #ffffff;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   pointer-events: none;
   overflow: hidden;
@@ -335,7 +334,7 @@
 
 .mahjong-seat-labels span {
   position: absolute;
-  max-width: min(140px, 28%);
+  max-width: min(120px, 24%);
   overflow: hidden;
   padding: 0;
   border: 0;
@@ -349,10 +348,10 @@
   color: #1da1f2;
 }
 
-.mahjong-seat-labels .is-bottom { bottom: 6px; left: 50%; transform: translateX(-50%); }
-.mahjong-seat-labels .is-top { top: 6px; left: 50%; transform: translateX(-50%); }
-.mahjong-seat-labels .is-left { top: 50%; left: 6px; transform: translateY(-50%); }
-.mahjong-seat-labels .is-right { top: 50%; right: 6px; transform: translateY(-50%); }
+.mahjong-seat-labels .is-bottom { bottom: 4px; left: 50%; transform: translateX(-50%); max-width: min(160px, 40%); }
+.mahjong-seat-labels .is-top { top: 4px; left: 50%; transform: translateX(-50%); max-width: min(160px, 40%); }
+.mahjong-seat-labels .is-left { top: 50%; left: 0; transform: translateY(-50%); max-width: min(110px, 22%); }
+.mahjong-seat-labels .is-right { top: 50%; right: 0; transform: translateY(-50%); max-width: min(110px, 22%); }
 
 .mahjong-turn-pill {
   position: absolute;

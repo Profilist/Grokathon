@@ -55,8 +55,8 @@ const tableRailOuterHalfSize = tableHalfSize + tableRailWidth;
 const sceneBackgroundColor = "#101514";
 const sceneToneMapping = THREE.ACESFilmicToneMapping;
 const sceneToneMappingExposure = 1.12;
-/** Closest orbit distance relative to the default camera position (1.6 = 160% zoom). */
-const MAX_BOARD_ZOOM = 1.6;
+/** Closest orbit distance relative to the default camera position (1.2 = 120% zoom). */
+const MAX_BOARD_ZOOM = 1.2;
 const rapierRigidBodyType = {
   dynamic: 0,
   kinematicPosition: 2,
@@ -86,36 +86,33 @@ function makeCameraPreset(
   return {
     ...preset,
     minDistance: preset.minDistance ?? defaultDistance / MAX_BOARD_ZOOM,
-    // Bias look-at toward the near hand so upright tile faces read clearly.
-    target: preset.target ?? [0, 0.14, 0.62],
+    // Keep look-at on table center so left/right hands stay symmetrically framed.
+    target: preset.target ?? [0, 0, 0],
   };
 }
 
 const cameraPresets = {
-  // Seat-side view that keeps the full table framed while still reading the near hand.
+  // Pulled back so rails, side hands, and seat labels stay inside the feed card.
   desktop: makeCameraPreset({
-    position: [0, 2.7, 7.25],
-    fov: 40,
-    maxDistance: 10.2,
-    minPolarAngle: Math.PI / 4.1,
-    maxPolarAngle: Math.PI / 2.35,
-    target: [0, 0.08, 0.28],
+    position: [0, 3.55, 8.9],
+    fov: 38,
+    maxDistance: 12.2,
+    minPolarAngle: Math.PI / 3.9,
+    maxPolarAngle: Math.PI / 2.55,
   }),
   narrow: makeCameraPreset({
-    position: [0, 4.2, 9.2],
-    fov: 48,
-    maxDistance: 13.2,
-    minPolarAngle: Math.PI / 4.4,
-    maxPolarAngle: Math.PI / 2.5,
-    target: [0, 0.1, 0.35],
+    position: [0, 4.9, 10.6],
+    fov: 44,
+    maxDistance: 14.5,
+    minPolarAngle: Math.PI / 4.2,
+    maxPolarAngle: Math.PI / 2.65,
   }),
   mobilePortrait: makeCameraPreset({
-    position: [0, 5.8, 9.6],
-    fov: 52,
-    maxDistance: 14.8,
-    minPolarAngle: Math.PI / 5.2,
-    maxPolarAngle: Math.PI / 2.7,
-    target: [0, 0.12, 0.4],
+    position: [0, 6.4, 11.2],
+    fov: 48,
+    maxDistance: 16,
+    minPolarAngle: Math.PI / 5,
+    maxPolarAngle: Math.PI / 2.8,
   }),
 } satisfies Record<string, CameraPreset>;
 
@@ -867,16 +864,18 @@ export function ThreeGameView({
           </group>
         </Suspense>
         <OrbitControls
+          key={`orbit:${viewSeat}:${cameraPreset.fov}:${cameraPreset.minDistance}`}
           autoRotate={
             simulatorMode && cameraAutoRotate && !isCameraUserControlled
           }
           autoRotateSpeed={0.14}
-          enableRotate={pointerControlsEnabled}
+          // Rotate makes it easy to push side hands out of the short feed frame.
+          enableRotate={simulatorMode && pointerControlsEnabled}
           enableZoom={pointerControlsEnabled}
           enablePan={false}
           // Damping forces a perpetual render loop; keep it off in the feed card.
           enableDamping={simulatorMode}
-          zoomSpeed={0.7}
+          zoomSpeed={0.55}
           target={orbitTarget}
           minDistance={cameraPreset.minDistance}
           maxDistance={cameraPreset.maxDistance}

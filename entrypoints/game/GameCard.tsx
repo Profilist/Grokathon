@@ -515,10 +515,7 @@ export function GameCard({
               />
               <div className="asset-forge__copy">
                 <strong>Make your {draftMove}</strong>
-                <span>
-                  {generatedAssets.selectionAssets[draftMove]?.name ??
-                    "Describe any object, creature, or weapon"}
-                </span>
+                <span>Describe any object, creature, or weapon</span>
               </div>
             </div>
             <div className="asset-forge__controls">
@@ -549,9 +546,6 @@ export function GameCard({
               <small className="asset-forge__status asset-forge__status--error">
                 {generatedAssets.error}
               </small>
-            ) : generatedAssets.generationState === "ready" &&
-              generatedAssets.selectionAssets[draftMove] ? (
-              <small className="asset-forge__status">Ready — it has replaced the default model.</small>
             ) : null}
           </form>
         ) : null}
