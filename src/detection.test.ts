@@ -2,10 +2,20 @@ import { describe, expect, it } from "vitest";
 import {
   extractProfileHandle,
   extractStatusHandle,
+  getGameMountKey,
   inferThemeFromColor,
   parseCardMarker,
   parseGameResizeMessage,
 } from "./detection";
+
+describe("getGameMountKey", () => {
+  it("uses only the stable game marker identity", () => {
+    expect(getGameMountKey({ kind: "rps", gameId: "finals" })).toBe("rps:finals");
+    expect(getGameMountKey({ kind: "mahjong", gameId: "finals" })).toBe(
+      "mahjong:finals",
+    );
+  });
+});
 
 describe("parseCardMarker", () => {
   it("extracts a game id from a marked post", () => {

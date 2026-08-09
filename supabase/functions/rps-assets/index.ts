@@ -44,7 +44,8 @@ Build coherent shapes with a flat node graph inside each material part:
 - Freeform: sweep, extrude, lathe.
 - CSG: union, smoothUnion, subtract, intersect.
 - Modifiers: twist, bend, noise.
-- Every part must be one connected solid. CSG inputs must overlap.
+- Prefer connected parts, but a union may contain multiple separate solids when they share one material. Intersections and subtraction cutters must overlap their target.
+- Keep blades, fins, panels, tubes, and other narrow features at least 0.05 units thick so the realtime mesher can sample them reliably.
 - Exactly one root part has parentPartId "". Other parts attach to an earlier semantic part.
 - Every attachment offset, rotation, scale, and anchor direction is exactly three JSON numbers. Root attachment offset and rotation are [0,0,0] with scale [1,1,1]. Keep attachment offsets between -2 and 2 and anchor direction components between -3 and 3. Always write decimal points; never split 0.6 into 0,6.
 - Keep a recognizable silhouette with 1-6 parts and 1-8 nodes per part.

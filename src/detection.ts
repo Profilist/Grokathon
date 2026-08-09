@@ -33,6 +33,18 @@ export interface CardMarker {
   wagerCents: number | null;
 }
 
+/**
+ * Stable identity for an injected game iframe.
+ *
+ * X can temporarily hide profile/account elements or report a different
+ * computed background while it reconciles the feed. Those values affect the
+ * initial iframe URL, but they must not decide whether an already-running game
+ * is destroyed and mounted again.
+ */
+export function getGameMountKey(reference: GameReference): string {
+  return `${reference.kind}:${reference.gameId}`;
+}
+
 export function parseCardMarker(text: string): CardMarker | null {
   const match = text.match(CARD_MARKER_PATTERN);
   const gameId = match?.[2];

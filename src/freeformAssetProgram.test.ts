@@ -83,10 +83,53 @@ describe("freeform asset programs", () => {
     expect(() => validateFreeformAssetProgram(invalid)).toThrow(/polygon self-intersects/);
   });
 
-  it("rejects parts whose CSG result is visibly disconnected", () => {
-    const invalid = structuredClone(freeformMeteor);
-    invalid.parts[0]!.nodes.find(({ id }) => id === "lowerLobe")!.position = [2.5, 2.5, 2.5];
-    expect(() => buildFreeformAsset(invalid)).toThrow(/disconnected geometry/);
+  it("meshes thin multi-component parts returned by Grok", () => {
+    const generated = structuredClone(freeformMeteor);
+    const part = generated.parts[0]!;
+    const template = structuredClone(part.nodes[0]!);
+    const primitive = (
+      id: string,
+      position: [number, number, number],
+    ) => ({
+      ...structuredClone(template),
+      id,
+      op: "box" as const,
+      inputs: [],
+      position,
+      rotation: [0, 0, 0.12] as [number, number, number],
+      size: [0.95, 0.14, 0.045] as [number, number, number],
+    });
+    const combine = (id: string, inputs: string[], smoothness: number) => ({
+      ...structuredClone(template),
+      id,
+      op: "smoothUnion" as const,
+      inputs,
+      position: [0, 0, 0] as [number, number, number],
+      rotation: [0, 0, 0] as [number, number, number],
+      smoothness,
+    });
+
+    part.id = "arm1";
+    part.nodes = [
+      primitive("blade", [0.42, 0.06, 0]),
+      primitive("shank", [-1.15, -1.08, 0]),
+      primitive("loop", [-1.52, -1.28, 0]),
+      primitive("pivot", [0, 0, 0]),
+      combine("join1", ["blade", "shank"], 0.08),
+      combine("join2", ["join1", "loop"], 0.07),
+      combine("armUnion", ["join2", "pivot"], 0.05),
+    ];
+    part.rootNodeId = "armUnion";
+    generated.parts = [part];
+    generated.surfaceDetailMode = "geometry";
+    generated.quality.resolution = 22;
+
+    const built = buildFreeformAsset(generated);
+    try {
+      expect(built.triangles).toBeGreaterThan(0);
+    } finally {
+      disposeFreeformAsset(built.group);
+    }
   });
 
   it("rejects a texture material outside the declared palette", () => {

@@ -2,6 +2,7 @@ import { browser } from "wxt/browser";
 import {
   extractProfileHandle,
   extractStatusHandle,
+  getGameMountKey,
   inferThemeFromColor,
   parseCardMarker,
   parseGameResizeMessage,
@@ -65,21 +66,14 @@ interface GameContext {
   theme: XTheme;
 }
 
-function getMountKey(context: GameContext): string {
-  return [
-    context.gameType,
-    context.gameId,
-    context.hostHandle ?? "",
-    context.viewerHandle ?? "",
-    context.theme,
-  ].join(":");
-}
-
 function createGameHost(context: GameContext): HTMLElement {
   const host = document.createElement("div");
   host.setAttribute(HOST_ATTRIBUTE, context.gameId);
   host.dataset.grokplayKind = context.gameType;
-  host.setAttribute(MOUNT_KEY_ATTRIBUTE, getMountKey(context));
+  host.setAttribute(
+    MOUNT_KEY_ATTRIBUTE,
+    getGameMountKey({ kind: context.gameType, gameId: context.gameId }),
+  );
   host.style.cssText = [
     "display:block",
     "width:100%",
@@ -132,7 +126,8 @@ function syncPost(post: HTMLElement): void {
     theme: findPostTheme(post),
   };
 
-  if (existingHost?.getAttribute(MOUNT_KEY_ATTRIBUTE) === getMountKey(context)) return;
+  const mountKey = getGameMountKey({ kind: context.gameType, gameId: context.gameId });
+  if (existingHost?.getAttribute(MOUNT_KEY_ATTRIBUTE) === mountKey) return;
   existingHost?.remove();
 
   const host = createGameHost(context);

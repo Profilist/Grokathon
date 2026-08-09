@@ -390,9 +390,16 @@ function createSdfGeometry(part: FreeformPart, resolution: number) {
   const bounds = createShapeBounds(part).expandByScalar(0.08);
   const size = bounds.getSize(new THREE.Vector3());
   const longest = Math.max(size.x, size.y, size.z);
-  const countX = Math.max(8, Math.round((resolution * size.x) / longest));
-  const countY = Math.max(8, Math.round((resolution * size.y) / longest));
-  const countZ = Math.max(8, Math.round((resolution * size.z) / longest));
+  const sampleCountForAxis = (axisSize: number) => {
+    const count = Math.max(13, Math.round((resolution * axisSize) / longest));
+    return count % 2 === 0 ? count + 1 : count;
+  };
+  // A useful minimum preserves narrow features on short axes, while odd sample
+  // counts include the center plane of symmetric bounds. Grok often emits thin
+  // blades, fins, and panels that an eight-sample grid can straddle entirely.
+  const countX = sampleCountForAxis(size.x);
+  const countY = sampleCountForAxis(size.y);
+  const countZ = sampleCountForAxis(size.z);
   const stepX = size.x / (countX - 1);
   const stepY = size.y / (countY - 1);
   const stepZ = size.z / (countZ - 1);
@@ -439,10 +446,6 @@ function createSdfGeometry(part: FreeformPart, resolution: number) {
   raw.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
   let geometry = mergeVertices(raw, 1e-4);
   raw.dispose();
-  if (countGeometryComponents(geometry) !== 1) {
-    geometry.dispose();
-    throw new Error(`Part ${part.id} contains disconnected geometry; use one connected shape per part`);
-  }
   geometry.computeVertexNormals();
   geometry.computeBoundingBox();
   geometry.computeBoundingSphere();
@@ -489,39 +492,6 @@ function createSdfGeometry(part: FreeformPart, resolution: number) {
   geometry.computeBoundingBox();
   geometry.computeBoundingSphere();
   return geometry;
-}
-
-function countGeometryComponents(geometry: THREE.BufferGeometry) {
-  const positions = geometry.getAttribute("position");
-  const index = geometry.index;
-  if (!index || positions.count === 0) return positions.count === 0 ? 0 : 1;
-  const parent = new Int32Array(positions.count);
-  for (let vertex = 0; vertex < parent.length; vertex += 1) parent[vertex] = vertex;
-  const find = (vertex: number): number => {
-    let root = vertex;
-    while (parent[root] !== root) root = parent[root]!;
-    while (parent[vertex] !== vertex) {
-      const next = parent[vertex]!;
-      parent[vertex] = root;
-      vertex = next;
-    }
-    return root;
-  };
-  const union = (left: number, right: number) => {
-    const leftRoot = find(left);
-    const rightRoot = find(right);
-    if (leftRoot !== rightRoot) parent[rightRoot] = leftRoot;
-  };
-  for (let offset = 0; offset < index.count; offset += 3) {
-    const a = index.getX(offset);
-    const b = index.getX(offset + 1);
-    const c = index.getX(offset + 2);
-    union(a, b);
-    union(b, c);
-  }
-  const roots = new Set<number>();
-  for (let vertex = 0; vertex < positions.count; vertex += 1) roots.add(find(vertex));
-  return roots.size;
 }
 
 function anchorPoint(bounds: THREE.Box3, anchor: FreeformAnchor) {
