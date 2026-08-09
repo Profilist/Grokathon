@@ -67,7 +67,7 @@ const SWAP_DURATION_MS = 280;
 const MOVE_META: Record<RpsMove, { color: number; label: string }> = {
   rock: { color: 0x777a7d, label: "Rock" },
   paper: { color: 0x53d8ff, label: "Paper" },
-  scissors: { color: 0xff4fc8, label: "Scissors" },
+  scissors: { color: 0xe53935, label: "Scissors" },
 };
 
 function tagMove(group: THREE.Group, move: RpsMove) {
@@ -160,17 +160,17 @@ function createScissors() {
   const group = new THREE.Group();
   const bladeMaterial = new THREE.MeshStandardMaterial({
     color: 0xf4f7ff,
-    emissive: 0x672050,
-    emissiveIntensity: 0.65,
+    emissive: 0x20242c,
+    emissiveIntensity: 0.28,
     metalness: 0.92,
     roughness: 0.18,
   });
   const handleMaterial = new THREE.MeshStandardMaterial({
     color: MOVE_META.scissors.color,
-    emissive: 0x781848,
-    emissiveIntensity: 0.95,
-    metalness: 0.35,
-    roughness: 0.3,
+    emissive: 0x5c0909,
+    emissiveIntensity: 0.7,
+    metalness: 0.25,
+    roughness: 0.34,
   });
   [-1, 1].forEach((direction) => {
     const blade = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.82, 0.075), bladeMaterial);
@@ -188,9 +188,9 @@ function createScissors() {
   const pivot = new THREE.Mesh(
     new THREE.SphereGeometry(0.09, 18, 18),
     new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      emissive: MOVE_META.scissors.color,
-      emissiveIntensity: 1.2,
+      color: 0xd6d9df,
+      emissive: 0x4a0c0c,
+      emissiveIntensity: 0.45,
       metalness: 0.8,
       roughness: 0.2,
     }),
