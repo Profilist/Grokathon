@@ -776,6 +776,16 @@ h1 {
   background: #000000;
 }
 
+.arena-stage__pad {
+  position: absolute;
+  top: 50.07%;
+  left: 27.77%;
+  width: 43.76%;
+  height: 36.12%;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.04);
+}
+
 .arena-scoreboard {
   position: absolute;
   z-index: 5;
@@ -928,6 +938,20 @@ h1 {
   border: 0.5px solid var(--border);
   border-radius: 15px;
   background: var(--surface);
+}
+
+.asset-forge__brand {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+}
+
+.asset-forge__mark {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
 }
 
 .asset-forge__copy {

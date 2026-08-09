@@ -13,6 +13,7 @@ import {
 } from "../../src/lobby";
 import { formatCents } from "../../src/games/catalog";
 import grokAvatar from "../../assets/grok.jpeg";
+import grokLogomarkLight from "../../assets/Grok_Logomark_Light.svg";
 
 const MOVES: RpsMove[] = ["rock", "paper", "scissors"];
 
@@ -168,6 +169,7 @@ function LobbyArena({
       </div>
       <div className="arena-stage" aria-hidden>
         <div className="arena-stage__dome" />
+        <div className="arena-stage__pad" />
       </div>
 
       {mode === "open" ? (
@@ -459,7 +461,6 @@ export function GameCard({
               <span className="brand__name">Grok Play</span>
             </div>
             <div className="title-block">
-              <p className="eyebrow">Head to Head</p>
               <h1>Grock Paper Scissors</h1>
             </div>
           </div>
@@ -503,12 +504,22 @@ export function GameCard({
               void generatedAssets.generate(draftMove, assetPrompt);
             }}
           >
-            <div className="asset-forge__copy">
-              <strong>Make your {draftMove}</strong>
-              <span>
-                {generatedAssets.selectionAssets[draftMove]?.name ??
-                  "Describe any object, creature, or weapon"}
-              </span>
+            <div className="asset-forge__brand">
+              <img
+                className="asset-forge__mark"
+                src={grokLogomarkLight}
+                alt=""
+                width={28}
+                height={28}
+                aria-hidden
+              />
+              <div className="asset-forge__copy">
+                <strong>Make your {draftMove}</strong>
+                <span>
+                  {generatedAssets.selectionAssets[draftMove]?.name ??
+                    "Describe any object, creature, or weapon"}
+                </span>
+              </div>
             </div>
             <div className="asset-forge__controls">
               <input
