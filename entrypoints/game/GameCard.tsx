@@ -514,7 +514,7 @@ export function GameCard({
                 aria-hidden
               />
               <div className="asset-forge__copy">
-                <strong>Make your {draftMove}</strong>
+                <strong>Generate your {draftMove}</strong>
                 <span>Describe any object, creature, or weapon</span>
               </div>
             </div>

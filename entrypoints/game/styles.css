@@ -20,6 +20,7 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+  min-height: 0;
   padding-bottom: 10px;
 }
 
@@ -235,16 +236,18 @@
 
 .mahjong-table-shell {
   display: flex;
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
   flex-direction: column;
   gap: 10px;
+  overflow: hidden;
 }
 
 .mahjong-stage {
   position: relative;
+  /* Must be shrinkable: a hard min-height pushes the footer past the iframe clip. */
   flex: 1 1 auto;
-  min-height: 380px;
+  min-height: 0;
   overflow: hidden;
   border: 0.5px solid var(--border);
   border-radius: 16px;
@@ -350,8 +353,8 @@
 
 .mahjong-seat-labels .is-bottom { bottom: 4px; left: 50%; transform: translateX(-50%); max-width: min(160px, 40%); }
 .mahjong-seat-labels .is-top { top: 4px; left: 50%; transform: translateX(-50%); max-width: min(160px, 40%); }
-.mahjong-seat-labels .is-left { top: 50%; left: 0; transform: translateY(-50%); max-width: min(110px, 22%); }
-.mahjong-seat-labels .is-right { top: 50%; right: 0; transform: translateY(-50%); max-width: min(110px, 22%); }
+.mahjong-seat-labels .is-left { top: 50%; left: 0; transform: translateY(-50%); max-width: min(150px, 28%); }
+.mahjong-seat-labels .is-right { top: 50%; right: 0; transform: translateY(-50%); max-width: min(150px, 28%); }
 
 .mahjong-turn-pill {
   position: absolute;

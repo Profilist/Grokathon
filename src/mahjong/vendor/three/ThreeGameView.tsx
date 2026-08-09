@@ -76,6 +76,58 @@ function cameraDistance(position: Vec3): number {
   return Math.hypot(position[0], position[1], position[2]);
 }
 
+/** Vertical span the camera must cover: table slab underside up to standing hand tiles. */
+const tableFitMinY = -tableSlabDepth;
+const tableFitMaxY = 0.5;
+const tableFitMargin = 1.04;
+
+/**
+ * Smallest orbit distance along `preset.position` that keeps the whole table inside
+ * the frustum for the given aspect. Without this the fixed presets clip the side
+ * hands whenever the card is wider or shorter than the preset assumed.
+ */
+function fitCameraDistance(preset: CameraPreset, aspect: number): number {
+  const direction = new THREE.Vector3(...preset.position).normalize();
+  const target = new THREE.Vector3(...preset.target);
+  const viewDirection = direction.clone().negate();
+  const worldUp = new THREE.Vector3(0, 1, 0);
+  const right = new THREE.Vector3()
+    .crossVectors(viewDirection, worldUp)
+    .normalize();
+  if (right.lengthSq() < 1e-6) {
+    right.set(1, 0, 0);
+  }
+  const up = new THREE.Vector3().crossVectors(right, viewDirection).normalize();
+
+  const verticalFov = (preset.fov * Math.PI) / 180;
+  const tanVertical = Math.tan(verticalFov / 2);
+  const tanHorizontal = tanVertical * Math.max(aspect, 0.1);
+
+  const halfSize = tableRailOuterHalfSize;
+  let required = 0;
+  for (const x of [-halfSize, halfSize]) {
+    for (const y of [tableFitMinY, tableFitMaxY]) {
+      for (const z of [-halfSize, halfSize]) {
+        const local = new THREE.Vector3(x, y, z).sub(target);
+        const alongView = local.dot(direction);
+        const depthForWidth = Math.abs(local.dot(right)) / tanHorizontal;
+        const depthForHeight = Math.abs(local.dot(up)) / tanVertical;
+        required = Math.max(
+          required,
+          alongView + Math.max(depthForWidth, depthForHeight),
+        );
+      }
+    }
+  }
+  return required * tableFitMargin;
+}
+
+function scaleToDistance(position: Vec3, distance: number): Vec3 {
+  const current = cameraDistance(position) || 1;
+  const scale = distance / current;
+  return [position[0] * scale, position[1] * scale, position[2] * scale];
+}
+
 function makeCameraPreset(
   preset: Omit<CameraPreset, "minDistance" | "target"> & {
     minDistance?: number;
@@ -307,7 +359,17 @@ export function ThreeGameView({
   const [internalCameraUserControlled, setInternalCameraUserControlled] =
     useState(false);
   const cameraPreset = useResponsiveCameraPreset();
-  const cameraPosition = rotateCameraPosition(cameraPreset.position, viewSeat);
+  const viewerRef = useRef<HTMLElement | null>(null);
+  const viewportAspect = useElementAspect(viewerRef);
+  const fittedDistance = useMemo(
+    () => fitCameraDistance(cameraPreset, viewportAspect),
+    [cameraPreset, viewportAspect],
+  );
+  const fittedPosition = useMemo(
+    () => scaleToDistance(cameraPreset.position, fittedDistance),
+    [cameraPreset.position, fittedDistance],
+  );
+  const cameraPosition = rotateCameraPosition(fittedPosition, viewSeat);
   const orbitTarget = rotateCameraPosition(cameraPreset.target, viewSeat);
   const lastEventIndexRef = useRef(eventIndex);
   const initialEventIndexRef = useRef(eventIndex);
@@ -631,7 +693,11 @@ export function ThreeGameView({
   }, [roundKey, sceneReadyMode]);
 
   return (
-    <section className="three-viewer" aria-label="3D Mahjong table">
+    <section
+      className="three-viewer"
+      aria-label="3D Mahjong table"
+      ref={viewerRef}
+    >
       {showThreeDebugPanel ? (
         <ThreeDebugPanel
           flickSettings={flickDebug}
@@ -725,7 +791,11 @@ export function ThreeGameView({
           }
         }}
       >
-        <CameraPresetSync preset={cameraPreset} viewSeat={viewSeat} />
+        <CameraPresetSync
+          preset={cameraPreset}
+          position={cameraPosition}
+          viewSeat={viewSeat}
+        />
         {transparentBackground ? null : (
           <color attach="background" args={[sceneBackgroundColor]} />
         )}
@@ -864,7 +934,7 @@ export function ThreeGameView({
           </group>
         </Suspense>
         <OrbitControls
-          key={`orbit:${viewSeat}:${cameraPreset.fov}:${cameraPreset.minDistance}`}
+          key={`orbit:${viewSeat}:${cameraPreset.fov}:${fittedDistance.toFixed(2)}`}
           autoRotate={
             simulatorMode && cameraAutoRotate && !isCameraUserControlled
           }
@@ -877,8 +947,8 @@ export function ThreeGameView({
           enableDamping={simulatorMode}
           zoomSpeed={0.55}
           target={orbitTarget}
-          minDistance={cameraPreset.minDistance}
-          maxDistance={cameraPreset.maxDistance}
+          minDistance={fittedDistance / MAX_BOARD_ZOOM}
+          maxDistance={fittedDistance * 1.35}
           maxPolarAngle={cameraPreset.maxPolarAngle}
           minPolarAngle={cameraPreset.minPolarAngle}
         />
@@ -934,20 +1004,53 @@ function currentCameraPresetName(): keyof typeof cameraPresets {
   return "desktop";
 }
 
-function CameraPresetSync({ preset, viewSeat }: { preset: CameraPreset; viewSeat: PlayerId }) {
-  const { camera } = useThree();
+function CameraPresetSync({
+  preset,
+  position,
+  viewSeat,
+}: {
+  preset: CameraPreset;
+  position: Vec3;
+  viewSeat: PlayerId;
+}) {
+  const camera = useThree((state) => state.camera);
+  const invalidate = useThree((state) => state.invalidate);
 
   useLayoutEffect(() => {
     const target = rotateCameraPosition(preset.target, viewSeat);
-    camera.position.set(...rotateCameraPosition(preset.position, viewSeat));
+    camera.position.set(...position);
     camera.lookAt(...target);
     if (camera instanceof THREE.PerspectiveCamera) {
       camera.fov = preset.fov;
       camera.updateProjectionMatrix();
     }
-  }, [camera, preset, viewSeat]);
+    invalidate();
+  }, [camera, invalidate, position, preset, viewSeat]);
 
   return null;
+}
+
+function useElementAspect(ref: React.RefObject<HTMLElement | null>): number {
+  const [aspect, setAspect] = useState(16 / 9);
+
+  useLayoutEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+
+    const measure = () => {
+      const { clientWidth, clientHeight } = element;
+      if (clientWidth > 0 && clientHeight > 0) {
+        setAspect(clientWidth / clientHeight);
+      }
+    };
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [ref]);
+
+  return aspect;
 }
 
 function rotateCameraPosition(position: Vec3, seat: PlayerId): Vec3 {
