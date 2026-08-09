@@ -168,8 +168,6 @@ function LobbyArena({
       </div>
       <div className="arena-stage" aria-hidden>
         <div className="arena-stage__dome" />
-        <div className="arena-stage__pad" />
-        <div className="arena-stage__ring" />
       </div>
 
       {mode === "open" ? (
@@ -533,7 +531,7 @@ export function GameCard({
                 type="submit"
                 disabled={assetPrompt.trim().length < 4 || isGenerating || preview !== null}
               >
-                {generatedAssets.generatingMove === draftMove ? "Forging…" : "Generate"}
+                {generatedAssets.generatingMove === draftMove ? "Imagining…" : "Generate"}
               </button>
             </div>
             {generatedAssets.error ? (

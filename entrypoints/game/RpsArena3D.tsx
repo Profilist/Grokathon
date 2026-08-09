@@ -574,8 +574,6 @@ export function RpsArena3D({
       <ArenaBackdrop />
       <div className="arena-stage" aria-hidden>
         <div className="arena-stage__dome" />
-        <div className="arena-stage__pad" />
-        <div className="arena-stage__ring" />
       </div>
       <canvas ref={canvasRef} className="rps-arena__canvas" aria-hidden />
       {webglFailed ? <div className="rps-arena__fallback">3D preview unavailable</div> : null}

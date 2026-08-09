@@ -341,7 +341,7 @@
   color: var(--text);
   background: rgba(0, 0, 0, 0.72);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 400;
   backdrop-filter: blur(8px);
 }
 
@@ -752,26 +752,6 @@ h1 {
   background: #000000;
 }
 
-.arena-stage__pad {
-  position: absolute;
-  top: 50.07%;
-  left: 27.77%;
-  width: 43.76%;
-  height: 36.12%;
-  border-radius: 50%;
-  background: rgba(217, 217, 217, 0.1);
-}
-
-.arena-stage__ring {
-  position: absolute;
-  top: 53.74%;
-  left: 36.52%;
-  width: 26.25%;
-  height: 24.38%;
-  border: 0.5px solid var(--border);
-  border-radius: 50%;
-}
-
 .arena-scoreboard {
   position: absolute;
   z-index: 5;
@@ -921,11 +901,9 @@ h1 {
   gap: 8px 12px;
   align-items: center;
   padding: 10px 12px;
-  border: 1px solid rgba(124, 92, 255, 0.28);
+  border: 0.5px solid var(--border);
   border-radius: 15px;
-  background:
-    radial-gradient(circle at 0 0, rgba(83, 216, 255, 0.1), transparent 50%),
-    var(--surface);
+  background: var(--surface);
 }
 
 .asset-forge__copy {
@@ -978,9 +956,9 @@ h1 {
 
 .asset-forge button {
   padding: 7px 11px;
-  border-color: rgba(124, 92, 255, 0.35);
+  border-color: #009ef7;
   color: #ffffff;
-  background: linear-gradient(135deg, #6d4aff, #1688d4);
+  background: #009ef7;
   font-size: 11px;
   font-weight: 800;
   cursor: pointer;
@@ -1010,7 +988,7 @@ h1 {
 }
 
 .action-bar--lobby {
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
 }
 
 .action-bar--confirm {
