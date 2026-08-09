@@ -476,6 +476,7 @@
   justify-content: space-between;
   gap: 15px;
   padding: 10px 14px;
+  background: #202020;
 }
 
 .mahjong-result-bar > div {
