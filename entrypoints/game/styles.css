@@ -935,6 +935,93 @@ h1 {
   line-height: 0.95;
 }
 
+.asset-forge {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.75fr) minmax(0, 1.6fr);
+  gap: 8px 12px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid rgba(124, 92, 255, 0.28);
+  border-radius: 15px;
+  background:
+    radial-gradient(circle at 0 0, rgba(83, 216, 255, 0.1), transparent 50%),
+    var(--surface);
+}
+
+.asset-forge__copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.asset-forge__copy strong {
+  font-size: 12px;
+  text-transform: capitalize;
+}
+
+.asset-forge__copy span {
+  overflow: hidden;
+  color: var(--secondary);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.asset-forge__controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+}
+
+.asset-forge input,
+.asset-forge button {
+  min-width: 0;
+  min-height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font: inherit;
+}
+
+.asset-forge input {
+  padding: 7px 10px;
+  color: var(--text);
+  background: var(--background);
+  font-size: 11px;
+  outline: none;
+}
+
+.asset-forge input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(29, 155, 240, 0.12);
+}
+
+.asset-forge button {
+  padding: 7px 11px;
+  border-color: rgba(124, 92, 255, 0.35);
+  color: #ffffff;
+  background: linear-gradient(135deg, #6d4aff, #1688d4);
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.asset-forge button:disabled,
+.asset-forge input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.asset-forge__status {
+  grid-column: 1 / -1;
+  color: #37c99b;
+  font-size: 10px;
+}
+
+.asset-forge__status--error {
+  color: #ff5d67;
+}
+
 .action-bar {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(88px, 1.05fr);
@@ -1248,6 +1335,10 @@ h1 {
   .wager-input > span,
   .wager-input input {
     font-size: 22px;
+  }
+
+  .asset-forge {
+    grid-template-columns: 1fr;
   }
 
   .move-btn,

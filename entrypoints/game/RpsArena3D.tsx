@@ -1,9 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
+import {
+  buildFreeformAsset,
+} from "../../src/freeformAssetProgram";
+import type { RenderableRpsAsset } from "../../src/generatedRpsAssets";
 import type { GameWinner, RpsMove } from "../../src/lobby";
 import { ArenaBackdrop } from "./ArenaBackdrop";
 
 type ArenaPhase = "selecting" | "waiting" | "spectating" | "complete";
+type ResultSlot = "host" | "guest";
 
 interface ResultDisplay {
   handle: string | null;
@@ -14,21 +19,55 @@ interface RpsArena3DProps {
   guestHandle: string;
   guestLocked: boolean;
   guestMove: RpsMove | null;
+  guestResultAsset?: RenderableRpsAsset | null;
   hostHandle: string;
   hostLocked: boolean;
   hostMove: RpsMove | null;
+  hostResultAsset?: RenderableRpsAsset | null;
   isSubmitting: boolean;
   phase: ArenaPhase;
   result: ResultDisplay | null;
   selectedMove: RpsMove | null;
+  selectionAssets?: Partial<Record<RpsMove, RenderableRpsAsset>>;
   wagerAmount: number;
   winner: GameWinner | null;
 }
 
-const MOVE_META: Record<RpsMove, { color: number; emoji: string; label: string }> = {
-  rock: { color: 0x7c5cff, emoji: "✊", label: "Rock" },
-  paper: { color: 0x53d8ff, emoji: "✋", label: "Paper" },
-  scissors: { color: 0xff4fc8, emoji: "✌️", label: "Scissors" },
+interface LiveArenaState {
+  guestMove: RpsMove | null;
+  hostMove: RpsMove | null;
+  phase: ArenaPhase;
+  selectedMove: RpsMove | null;
+  winner: GameWinner | null;
+}
+
+interface ObjectSwap {
+  from: THREE.Group;
+  startedAt: number;
+  to: THREE.Group;
+}
+
+interface ArenaRuntime {
+  disposed: boolean;
+  guestResult: THREE.Group | null;
+  guestResultKey: string | null;
+  hostResult: THREE.Group | null;
+  hostResultKey: string | null;
+  resultSpacing: number;
+  scene: THREE.Scene;
+  selection: Record<RpsMove, THREE.Group>;
+  selectionKeys: Record<RpsMove, string>;
+  selectionSpacing: number;
+  swaps: ObjectSwap[];
+}
+
+const MOVES: RpsMove[] = ["rock", "paper", "scissors"];
+const SWAP_DURATION_MS = 280;
+
+const MOVE_META: Record<RpsMove, { color: number; label: string }> = {
+  rock: { color: 0x7c5cff, label: "Rock" },
+  paper: { color: 0x53d8ff, label: "Paper" },
+  scissors: { color: 0xff4fc8, label: "Scissors" },
 };
 
 function tagMove(group: THREE.Group, move: RpsMove) {
@@ -43,7 +82,6 @@ function createRock() {
   const group = new THREE.Group();
   const geometry = new THREE.IcosahedronGeometry(0.46, 1);
   const positions = geometry.getAttribute("position") as THREE.BufferAttribute;
-
   for (let index = 0; index < positions.count; index += 1) {
     const x = positions.getX(index);
     const y = positions.getY(index);
@@ -52,7 +90,6 @@ function createRock() {
     positions.setXYZ(index, x * variation, y * (1 + Math.cos(index * 4.1) * 0.05), z * variation);
   }
   geometry.computeVertexNormals();
-
   const material = new THREE.MeshStandardMaterial({
     color: MOVE_META.rock.color,
     emissive: 0x291878,
@@ -64,7 +101,6 @@ function createRock() {
   const rock = new THREE.Mesh(geometry, material);
   rock.rotation.set(0.25, 0.4, -0.12);
   group.add(rock);
-
   const edge = new THREE.LineSegments(
     new THREE.EdgesGeometry(geometry, 28),
     new THREE.LineBasicMaterial({ color: 0xb7a9ff, transparent: true, opacity: 0.55 }),
@@ -78,14 +114,12 @@ function createPaper() {
   const group = new THREE.Group();
   const geometry = new THREE.PlaneGeometry(0.92, 0.72, 12, 10);
   const positions = geometry.getAttribute("position") as THREE.BufferAttribute;
-
   for (let index = 0; index < positions.count; index += 1) {
     const x = positions.getX(index);
     const y = positions.getY(index);
     positions.setZ(index, Math.sin((x + 0.45) * 4.6) * 0.075 + Math.cos(y * 4.1) * 0.025);
   }
   geometry.computeVertexNormals();
-
   const material = new THREE.MeshPhysicalMaterial({
     color: 0xdff9ff,
     emissive: 0x126c8e,
@@ -99,7 +133,6 @@ function createPaper() {
   const paper = new THREE.Mesh(geometry, material);
   paper.rotation.set(-0.12, -0.22, 0.08);
   group.add(paper);
-
   const edge = new THREE.LineSegments(
     new THREE.EdgesGeometry(geometry, 22),
     new THREE.LineBasicMaterial({ color: MOVE_META.paper.color, transparent: true, opacity: 0.8 }),
@@ -125,23 +158,19 @@ function createScissors() {
     metalness: 0.35,
     roughness: 0.3,
   });
-
   [-1, 1].forEach((direction) => {
     const blade = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.82, 0.075), bladeMaterial);
     blade.position.set(direction * 0.14, 0.18, 0);
     blade.rotation.z = direction * -0.34;
     group.add(blade);
-
     const tip = new THREE.Mesh(new THREE.ConeGeometry(0.075, 0.28, 12), bladeMaterial);
     tip.position.set(direction * 0.28, 0.56, 0);
     tip.rotation.z = direction * -0.34;
     group.add(tip);
-
     const handle = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.052, 12, 28), handleMaterial);
     handle.position.set(direction * 0.2, -0.34, 0);
     group.add(handle);
   });
-
   const pivot = new THREE.Mesh(
     new THREE.SphereGeometry(0.09, 18, 18),
     new THREE.MeshStandardMaterial({
@@ -158,64 +187,133 @@ function createScissors() {
   return tagMove(group, "scissors");
 }
 
-function createMoveObject(move: RpsMove) {
+function createDefaultMove(move: RpsMove) {
   if (move === "rock") return createRock();
   if (move === "paper") return createPaper();
   return createScissors();
 }
 
+async function createMoveObject(move: RpsMove, asset: RenderableRpsAsset | null) {
+  if (!asset) return createDefaultMove(move);
+  let texture: THREE.Texture | null = null;
+  if (asset.textureUrl) {
+    try {
+      texture = await new THREE.TextureLoader().loadAsync(asset.textureUrl);
+    } catch (error) {
+      console.warn("Generated RPS texture failed to load; using geometry materials", error);
+    }
+  }
+  try {
+    const built = buildFreeformAsset(asset.program, texture);
+    built.group.scale.multiplyScalar(0.39);
+    const wrapper = new THREE.Group();
+    wrapper.name = asset.name;
+    wrapper.userData.generatedAssetId = asset.id;
+    wrapper.add(built.group);
+    return tagMove(wrapper, move);
+  } catch (error) {
+    texture?.dispose();
+    throw error;
+  }
+}
+
+function materialsOf(object: THREE.Object3D) {
+  const materials: THREE.Material[] = [];
+  object.traverse((child) => {
+    if (!(child instanceof THREE.Mesh) && !(child instanceof THREE.LineSegments) && !(child instanceof THREE.Points)) {
+      return;
+    }
+    materials.push(...(Array.isArray(child.material) ? child.material : [child.material]));
+  });
+  return materials;
+}
+
 function setGlow(group: THREE.Object3D, intensity: number, opacity = 1) {
-  group.traverse((object) => {
-    if (!(object instanceof THREE.Mesh) && !(object instanceof THREE.LineSegments)) return;
-    const materials = Array.isArray(object.material) ? object.material : [object.material];
-    materials.forEach((material) => {
-      material.transparent = opacity < 1 || material.transparent;
-      material.opacity = opacity;
-      if (material instanceof THREE.MeshStandardMaterial) {
-        material.emissiveIntensity = intensity;
-      }
-    });
+  materialsOf(group).forEach((material) => {
+    const baseOpacity =
+      typeof material.userData.rpsBaseOpacity === "number"
+        ? material.userData.rpsBaseOpacity
+        : material.opacity;
+    material.userData.rpsBaseOpacity = baseOpacity;
+    material.transparent = opacity < 1 || baseOpacity < 1 || material.transparent;
+    material.opacity = baseOpacity * opacity;
+    if (material instanceof THREE.MeshStandardMaterial) material.emissiveIntensity = intensity;
   });
 }
 
-function disposeScene(scene: THREE.Scene) {
+function disposeObject(object: THREE.Object3D) {
   const geometries = new Set<THREE.BufferGeometry>();
-  const materials = new Set<THREE.Material>();
-
-  scene.traverse((object) => {
-    if (!(object instanceof THREE.Mesh) && !(object instanceof THREE.LineSegments) && !(object instanceof THREE.Points)) {
-      return;
+  const materials = new Set(materialsOf(object));
+  const textures = new Set<THREE.Texture>();
+  object.traverse((child) => {
+    if (child instanceof THREE.Mesh || child instanceof THREE.LineSegments || child instanceof THREE.Points) {
+      geometries.add(child.geometry);
     }
-    geometries.add(object.geometry);
-    const objectMaterials = Array.isArray(object.material) ? object.material : [object.material];
-    objectMaterials.forEach((material) => materials.add(material));
   });
-
+  materials.forEach((material) => {
+    Object.values(material).forEach((value) => {
+      if (value instanceof THREE.Texture) textures.add(value);
+    });
+  });
+  textures.forEach((texture) => texture.dispose());
   geometries.forEach((geometry) => geometry.dispose());
   materials.forEach((material) => material.dispose());
+}
+
+function disposeScene(scene: THREE.Scene) {
+  scene.children.forEach((child) => disposeObject(child));
+}
+
+function beginSwap(runtime: ArenaRuntime, from: THREE.Group, to: THREE.Group) {
+  const interrupted = runtime.swaps.filter((swap) => swap.to === from);
+  interrupted.forEach((swap) => {
+    runtime.scene.remove(swap.from);
+    disposeObject(swap.from);
+  });
+  runtime.swaps = runtime.swaps.filter((swap) => swap.to !== from && swap.from !== from);
+  setGlow(to, 0.85, 0);
+  runtime.scene.add(to);
+  runtime.swaps.push({ from, to, startedAt: performance.now() });
+}
+
+function removeResult(runtime: ArenaRuntime, slot: ResultSlot) {
+  const key = slot === "host" ? "hostResult" : "guestResult";
+  const object = runtime[key];
+  if (object) {
+    runtime.scene.remove(object);
+    disposeObject(object);
+    runtime[key] = null;
+  }
+  if (slot === "host") runtime.hostResultKey = null;
+  else runtime.guestResultKey = null;
 }
 
 export function RpsArena3D({
   guestHandle,
   guestLocked,
   guestMove,
+  guestResultAsset = null,
   hostHandle,
   hostLocked,
   hostMove,
+  hostResultAsset = null,
   isSubmitting,
   phase,
   result,
   selectedMove,
+  selectionAssets = {},
   wagerAmount,
   winner,
 }: RpsArena3DProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const runtimeRef = useRef<ArenaRuntime | null>(null);
+  const liveStateRef = useRef<LiveArenaState>({ guestMove, hostMove, phase, selectedMove, winner });
   const [webglFailed, setWebglFailed] = useState(false);
+  liveStateRef.current = { guestMove, hostMove, phase, selectedMove, winner };
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-
     let renderer: THREE.WebGLRenderer;
     try {
       renderer = new THREE.WebGLRenderer({
@@ -240,7 +338,6 @@ export function RpsArena3D({
     const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 50);
     camera.position.set(0, 1.05, 5.1);
     camera.lookAt(0, 0.02, 0);
-
     scene.add(new THREE.HemisphereLight(0xb7c8ff, 0x130823, 1.65));
     const keyLight = new THREE.DirectionalLight(0xffffff, 3.3);
     keyLight.position.set(1.8, 3.2, 4.2);
@@ -274,52 +371,38 @@ export function RpsArena3D({
     );
     scene.add(particles);
 
-    const selectionMoves: RpsMove[] = ["rock", "paper", "scissors"];
-    const selectionObjects = selectionMoves.map((move, index) => {
-      const object = createMoveObject(move);
-      const baseScale = phase === "waiting" ? 0.9 : 0.78;
-      object.position.set((index - 1) * 1.08, -0.02, 0);
-      object.scale.setScalar(baseScale);
-      object.userData.baseX = object.position.x;
-      object.userData.baseY = object.position.y;
-      object.userData.baseScale = baseScale;
-      object.visible = phase !== "complete" && (phase !== "waiting" || move === selectedMove);
-      if (phase === "waiting" && move === selectedMove) object.position.x = 0;
-      if (phase === "spectating") setGlow(object, 0.42, 0.48);
-      scene.add(object);
-      return object;
-    });
-
-    let hostResult: THREE.Group | null = null;
-    let guestResult: THREE.Group | null = null;
-    if (phase === "complete" && hostMove && guestMove) {
-      hostResult = createMoveObject(hostMove);
-      guestResult = createMoveObject(guestMove);
-      hostResult.position.set(-0.98, -0.01, 0);
-      guestResult.position.set(0.98, -0.01, 0);
-      hostResult.scale.setScalar(0.78);
-      guestResult.scale.setScalar(0.78);
-      setGlow(hostResult, winner === "host" || winner === "draw" ? 1.45 : 0.38, winner === "guest" ? 0.62 : 1);
-      setGlow(guestResult, winner === "guest" || winner === "draw" ? 1.45 : 0.38, winner === "host" ? 0.62 : 1);
-      scene.add(hostResult, guestResult);
-    }
+    const selection = Object.fromEntries(
+      MOVES.map((move) => [move, createDefaultMove(move)]),
+    ) as Record<RpsMove, THREE.Group>;
+    MOVES.forEach((move) => scene.add(selection[move]));
+    const runtime: ArenaRuntime = {
+      disposed: false,
+      guestResult: null,
+      guestResultKey: null,
+      hostResult: null,
+      hostResultKey: null,
+      resultSpacing: 0.98,
+      scene,
+      selection,
+      selectionKeys: { rock: "default:rock", paper: "default:paper", scissors: "default:scissors" },
+      selectionSpacing: 1.08,
+      swaps: [],
+    };
+    runtimeRef.current = runtime;
 
     let renderedWidth = 0;
     let renderedHeight = 0;
     let renderedPixelRatio = 0;
     const layoutObjects = (aspect: number) => {
-      const selectionSpacing = THREE.MathUtils.clamp(aspect * 0.9, 0.6, 1.08);
-      selectionObjects.forEach((object, index) => {
-        const move = selectionMoves[index];
-        object.position.x = phase === "waiting" && move === selectedMove
-          ? 0
-          : (index - 1) * selectionSpacing;
-        object.userData.baseX = object.position.x;
+      runtime.selectionSpacing = THREE.MathUtils.clamp(aspect * 0.9, 0.6, 1.08);
+      MOVES.forEach((move, index) => {
+        const object = runtime.selection[move];
+        object.userData.baseX = (index - 1) * runtime.selectionSpacing;
       });
 
-      const resultSpacing = THREE.MathUtils.clamp(aspect * 0.82, 0.58, 0.98);
-      if (hostResult) hostResult.position.x = -resultSpacing;
-      if (guestResult) guestResult.position.x = resultSpacing;
+      runtime.resultSpacing = THREE.MathUtils.clamp(aspect * 0.82, 0.58, 0.98);
+      if (runtime.hostResult) runtime.hostResult.position.x = -runtime.resultSpacing;
+      if (runtime.guestResult) runtime.guestResult.position.x = runtime.resultSpacing;
     };
     const resize = () => {
       const width = Math.max(1, canvas.clientWidth);
@@ -346,53 +429,147 @@ export function RpsArena3D({
     const resizeObserver = new ResizeObserver(resize);
     resizeObserver.observe(canvas);
     resize();
-
     const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
     renderer.setAnimationLoop((time) => {
       resize();
       const seconds = time * 0.001;
+      const state = liveStateRef.current;
       particles.rotation.y = seconds * 0.035;
 
-      selectionObjects.forEach((object, index) => {
-        if (!object.visible) return;
-        const move = selectionMoves[index];
-        const baseScale = object.userData.baseScale as number;
-        const selected = selectedMove === move;
-        const hoverScale = baseScale * (selected ? 1.14 : phase === "waiting" ? 1.08 : 1);
-        object.scale.lerp(new THREE.Vector3(hoverScale, hoverScale, hoverScale), 0.13);
-        object.position.y = object.userData.baseY + (reducedMotion ? 0 : Math.sin(seconds * 1.8 + index) * 0.07);
+      MOVES.forEach((move, index) => {
+        const object = runtime.selection[move];
+        const baseScale = state.phase === "waiting" ? 0.9 : 0.78;
+        const visible = state.phase !== "complete" && (state.phase !== "waiting" || move === state.selectedMove);
+        object.visible = visible;
+        if (!visible) return;
+        const baseX = state.phase === "waiting" && move === state.selectedMove
+          ? 0
+          : (index - 1) * runtime.selectionSpacing;
+        const selected = state.selectedMove === move;
+        const targetScale = baseScale * (selected ? 1.14 : state.phase === "waiting" ? 1.08 : 1);
+        object.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.13);
+        object.position.x += (baseX - object.position.x) * 0.18;
+        object.position.y = reducedMotion ? -0.02 : -0.02 + Math.sin(seconds * 1.8 + index) * 0.07;
         if (!reducedMotion) object.rotation.y += 0.006 + index * 0.0015;
-        setGlow(object, selected ? 1.55 : phase === "waiting" ? 1.25 : 0.85);
+        setGlow(object, selected ? 1.55 : state.phase === "waiting" ? 1.25 : state.phase === "spectating" ? 0.42 : 0.85, state.phase === "spectating" ? 0.48 : 1);
       });
 
-      if (hostResult && guestResult) {
-        const hostWins = winner === "host";
-        const guestWins = winner === "guest";
-        const hostScale = hostWins ? 0.92 : 0.78;
-        const guestScale = guestWins ? 0.92 : 0.78;
-        hostResult.scale.lerp(new THREE.Vector3(hostScale, hostScale, hostScale), 0.08);
-        guestResult.scale.lerp(new THREE.Vector3(guestScale, guestScale, guestScale), 0.08);
-        if (!reducedMotion) {
-          hostResult.rotation.y += 0.007;
-          guestResult.rotation.y -= 0.007;
-          hostResult.position.y = Math.sin(seconds * 2) * 0.045;
-          guestResult.position.y = Math.sin(seconds * 2 + 1.2) * 0.045;
-        }
-      }
+      const results: Array<[ResultSlot, THREE.Group | null]> = [
+        ["host", runtime.hostResult],
+        ["guest", runtime.guestResult],
+      ];
+      results.forEach(([slot, object]) => {
+        if (!object) return;
+        object.visible = state.phase === "complete";
+        const isHost = slot === "host";
+        const wins = state.winner === slot;
+        const loses = state.winner && state.winner !== "draw" && state.winner !== slot;
+        const targetScale = wins ? 0.92 : 0.78;
+        object.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.08);
+        object.position.x = isHost ? -runtime.resultSpacing : runtime.resultSpacing;
+        object.position.y = reducedMotion ? -0.01 : Math.sin(seconds * 2 + (isHost ? 0 : 1.2)) * 0.045;
+        if (!reducedMotion) object.rotation.y += isHost ? 0.007 : -0.007;
+        setGlow(object, wins || state.winner === "draw" ? 1.45 : 0.38, loses ? 0.62 : 1);
+      });
+
+      runtime.swaps = runtime.swaps.filter((swap) => {
+        const progress = reducedMotion
+          ? 1
+          : Math.min(1, Math.max(0, (time - swap.startedAt) / SWAP_DURATION_MS));
+        setGlow(swap.from, 0.85, 1 - progress);
+        setGlow(swap.to, 0.85, progress);
+        if (progress < 1) return true;
+        scene.remove(swap.from);
+        disposeObject(swap.from);
+        return false;
+      });
 
       renderer.render(scene, camera);
     });
 
     return () => {
+      runtime.disposed = true;
+      runtimeRef.current = null;
       renderer.setAnimationLoop(null);
       resizeObserver.disconnect();
       disposeScene(scene);
       renderer.dispose();
     };
-  }, [guestMove, hostMove, phase, selectedMove, winner]);
+  }, []);
+
+  useEffect(() => {
+    const runtime = runtimeRef.current;
+    if (!runtime) return;
+    MOVES.forEach((move) => {
+      const asset = selectionAssets[move] ?? null;
+      const key = asset?.id ?? `default:${move}`;
+      if (runtime.selectionKeys[move] === key) return;
+      runtime.selectionKeys[move] = key;
+      void createMoveObject(move, asset)
+        .then((next) => {
+          if (runtime.disposed || runtime.selectionKeys[move] !== key) {
+            disposeObject(next);
+            return;
+          }
+          const current = runtime.selection[move];
+          next.position.copy(current.position);
+          next.rotation.copy(current.rotation);
+          next.scale.copy(current.scale);
+          next.visible = current.visible;
+          runtime.selection[move] = next;
+          beginSwap(runtime, current, next);
+        })
+        .catch((error) => {
+          console.error(`Could not render generated ${move} asset`, error);
+          if (runtime.selectionKeys[move] === key) runtime.selectionKeys[move] = `failed:${key}`;
+        });
+    });
+  }, [selectionAssets.rock?.id, selectionAssets.paper?.id, selectionAssets.scissors?.id]);
+
+  useEffect(() => {
+    const runtime = runtimeRef.current;
+    if (!runtime) return;
+    const updateSlot = (slot: ResultSlot, move: RpsMove | null, asset: RenderableRpsAsset | null) => {
+      if (phase !== "complete" || !move) {
+        removeResult(runtime, slot);
+        return;
+      }
+      const key = `${move}:${asset?.id ?? "default"}`;
+      const currentKey = slot === "host" ? runtime.hostResultKey : runtime.guestResultKey;
+      if (currentKey === key) return;
+      if (slot === "host") runtime.hostResultKey = key;
+      else runtime.guestResultKey = key;
+      void createMoveObject(move, asset)
+        .then((next) => {
+          if (runtime.disposed) {
+            disposeObject(next);
+            return;
+          }
+          const latestKey = slot === "host" ? runtime.hostResultKey : runtime.guestResultKey;
+          if (latestKey !== key) {
+            disposeObject(next);
+            return;
+          }
+          const current = slot === "host" ? runtime.hostResult : runtime.guestResult;
+          next.position.set(
+            slot === "host" ? -runtime.resultSpacing : runtime.resultSpacing,
+            -0.01,
+            0,
+          );
+          next.scale.setScalar(0.78);
+          if (slot === "host") runtime.hostResult = next;
+          else runtime.guestResult = next;
+          if (current) beginSwap(runtime, current, next);
+          else runtime.scene.add(next);
+        })
+        .catch((error) => console.error(`Could not render ${slot} result asset`, error));
+    };
+    updateSlot("host", hostMove, hostResultAsset);
+    updateSlot("guest", guestMove, guestResultAsset);
+  }, [phase, hostMove, guestMove, hostResultAsset?.id, guestResultAsset?.id]);
 
   const selectedMeta = selectedMove ? MOVE_META[selectedMove] : null;
-
   return (
     <div className={`rps-arena rps-arena--${phase}`}>
       <ArenaBackdrop />
@@ -408,16 +585,12 @@ export function RpsArena3D({
         <div className="arena-scoreboard">
           <span>
             @{hostHandle.replace(/^@/, "")}
-            <small className={hostLocked ? "is-locked" : ""}>
-              {hostLocked ? "Locked" : "Choosing"}
-            </small>
+            <small className={hostLocked ? "is-locked" : ""}>{hostLocked ? "Locked" : "Choosing"}</small>
           </span>
           <b>vs</b>
           <span>
             @{guestHandle.replace(/^@/, "")}
-            <small className={guestLocked ? "is-locked" : ""}>
-              {guestLocked ? "Locked" : "Choosing"}
-            </small>
+            <small className={guestLocked ? "is-locked" : ""}>{guestLocked ? "Locked" : "Choosing"}</small>
           </span>
         </div>
       ) : null}
@@ -441,12 +614,8 @@ export function RpsArena3D({
           <small>Round Results</small>
           <strong className="arena-result-overlay__headline">
             {result.handle ? (
-              <>
-                <span className="arena-result-overlay__handle">{result.handle}</span> {result.text}
-              </>
-            ) : (
-              result.text
-            )}
+              <><span className="arena-result-overlay__handle">{result.handle}</span> {result.text}</>
+            ) : result.text}
           </strong>
           <span className="arena-result-overlay__payout">${wagerAmount}</span>
         </div>

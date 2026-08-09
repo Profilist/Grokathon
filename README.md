@@ -14,9 +14,11 @@ Create a Supabase project, then:
 
 1. Open **Authentication → Providers → Anonymous Sign-Ins** and enable anonymous sign-ins.
 2. Apply the migrations in [`supabase/migrations`](supabase/migrations) in filename order.
-3. Deploy the authoritative Mahjong function:
+3. Store the xAI key as a server-side Supabase secret, then deploy both Edge Functions:
 
 ```bash
+supabase secrets set XAI_API_KEY=your_xai_key
+supabase functions deploy rps-assets
 supabase functions deploy mahjong-game
 ```
 
@@ -75,7 +77,9 @@ The extension uses Supabase anonymous authentication to give each installation a
 
 ### Rock Paper Scissors
 
-After the host selects RPS, the teammate clicks **Join game**. Both embedded cards update through Supabase Realtime. Each player picks an animated 3D Rock, Paper, or Scissors piece; choices stay hidden until both players lock in, then both arenas reveal the moves and winner.
+After the host selects RPS, the teammate clicks **Join game**. Both embedded cards update through Supabase Realtime. Each player selects Rock, Paper, or Scissors, then can describe a custom object and click **Generate** before locking in. Grok 4.5 creates a validated geometry recipe, Imagine optionally creates its surface texture, and the Three.js arena crossfades to the generated model.
+
+The player locks in the move and generated asset together. Both choices and asset IDs stay hidden until the round resolves, then player and read-only spectator arenas reveal the custom models and winner at the same time. The xAI key never enters the extension bundle: `rps-assets` authenticates the anonymous Supabase user, verifies their seat, runs generation in a background task, and stores textures in the private `rps-generated-assets` bucket. The browser receives only validated recipe JSON and a short-lived signed texture URL.
 
 ## 4. Four-player 3D Mahjong
 
@@ -111,6 +115,7 @@ Once an RPS lobby is full, anyone who is not one of its two players automaticall
 - **Lobby already full:** use a fresh game ID in a new marker post.
 - **Testing alone:** the host can click **Fill with bots**, then **Deal tiles**, without creating extra Chrome profiles.
 - **Run the RPS round migration:** apply every migration in filename order if the lobby works but move submission fails.
+- **Custom asset generation fails:** deploy `rps-assets` and set the server-side `XAI_API_KEY` secret. Do not put that key in `.env`.
 - **Deploy the Mahjong function:** run `supabase functions deploy mahjong-game` if the Mahjong card reports that its server is unavailable.
 - **Table looks compact:** join a seat or click **Open table**; the Mahjong iframe expands inside the post without opening a new page.
 

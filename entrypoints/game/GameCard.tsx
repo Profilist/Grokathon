@@ -1,5 +1,6 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useGameLobby, type GameLobbyState } from "./useGameLobby";
+import { useGeneratedRpsAssets } from "./useGeneratedRpsAssets";
 import { ArenaBackdrop } from "./ArenaBackdrop";
 import { RpsArena3D } from "./RpsArena3D";
 import {
@@ -256,18 +257,37 @@ export function GameCard({
   const [showWagerConfirm, setShowWagerConfirm] = useState(preview === "joined");
   const [previewJoined, setPreviewJoined] = useState(false);
   const [joinedPendingConfirm, setJoinedPendingConfirm] = useState(false);
+  const [draftMove, setDraftMove] = useState<RpsMove | null>(null);
+  const [assetPrompt, setAssetPrompt] = useState("");
+  const completedRound = useRef(false);
 
   const state = preview
     ? previewState(gameId, hostHandle, viewerHandle, preview, {
         previewJoined,
       })
     : liveState;
+  const generatedAssets = useGeneratedRpsAssets({
+    enabled: preview === null,
+    gameId,
+    roundComplete: state.lobby?.status === "complete",
+    userId: state.userId,
+  });
 
   useEffect(() => {
     setShowWagerConfirm(preview === "joined");
     setPreviewJoined(false);
     setJoinedPendingConfirm(false);
+    setDraftMove(null);
+    setAssetPrompt("");
   }, [preview, gameId]);
+
+  useEffect(() => {
+    if (completedRound.current && state.lobby?.status !== "complete") {
+      setDraftMove(null);
+      setAssetPrompt("");
+    }
+    completedRound.current = state.lobby?.status === "complete";
+  }, [state.lobby?.status]);
 
   useEffect(() => {
     if (preview !== null || !joinedPendingConfirm) return;
@@ -291,6 +311,10 @@ export function GameCard({
   const hasPlayed = getPlayerHasPlayed(state.lobby, state.role);
   const movesUnlocked =
     !showWagerConfirm && isPlayer && state.canSubmitMove && !state.isSubmittingMove;
+  const selectedMove = state.myMove ?? draftMove;
+  const isGenerating =
+    generatedAssets.generationState === "generating" ||
+    generatedAssets.generationState === "loading";
   const arenaPhase =
     state.lobby?.status === "complete"
       ? "complete"
@@ -329,6 +353,12 @@ export function GameCard({
     else void handleJoin();
   };
 
+  const handleLockMove = () => {
+    if (!draftMove || isGenerating) return;
+    const assetId = generatedAssets.selectionAssets[draftMove]?.id ?? null;
+    void state.submitMove(draftMove, assetId);
+  };
+
   let actionBar: ReactNode;
   if (isReadOnlySpectator) {
     actionBar = null;
@@ -360,7 +390,7 @@ export function GameCard({
     actionBar = (
       <footer className="action-bar">
         {MOVES.map((move) => {
-          const active = state.myMove === move;
+          const active = selectedMove === move;
           const label = move.charAt(0).toUpperCase() + move.slice(1);
           return (
             <button
@@ -369,21 +399,33 @@ export function GameCard({
               className={`move-btn${active ? " move-btn--active" : ""}`}
               disabled={!movesUnlocked}
               aria-pressed={active}
-              onClick={() => void state.submitMove(move)}
+              onClick={() => setDraftMove(move)}
             >
               {label}
             </button>
           );
         })}
-        <button
-          type="button"
-          className="primary-btn"
-          disabled={!primaryEnabled || state.isJoining || state.isReplaying}
-          aria-disabled={!primaryEnabled || state.isJoining || state.isReplaying}
-          onClick={handlePrimaryClick}
-        >
-          {getPrimaryActionCopy(state)}
-        </button>
+        {movesUnlocked ? (
+          <button
+            type="button"
+            className="primary-btn"
+            disabled={!draftMove || isGenerating}
+            aria-disabled={!draftMove || isGenerating}
+            onClick={handleLockMove}
+          >
+            {isGenerating ? "Creating…" : "Lock In"}
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="primary-btn"
+            disabled={!primaryEnabled || state.isJoining || state.isReplaying}
+            aria-disabled={!primaryEnabled || state.isJoining || state.isReplaying}
+            onClick={handlePrimaryClick}
+          >
+            {getPrimaryActionCopy(state)}
+          </button>
+        )}
       </footer>
     );
   }
@@ -439,7 +481,10 @@ export function GameCard({
             isSubmitting={state.isSubmittingMove}
             phase={arenaPhase}
             result={result}
-            selectedMove={state.myMove}
+            selectedMove={selectedMove}
+            selectionAssets={generatedAssets.selectionAssets}
+            hostResultAsset={generatedAssets.hostResultAsset}
+            guestResultAsset={generatedAssets.guestResultAsset}
             wagerAmount={wagerAmount}
             winner={state.lobby.winner}
           />
@@ -451,6 +496,56 @@ export function GameCard({
             wagerAmount={wagerAmount}
           />
         )}
+
+        {arenaPhase === "selecting" && draftMove ? (
+          <form
+            className="asset-forge"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void generatedAssets.generate(draftMove, assetPrompt);
+            }}
+          >
+            <div className="asset-forge__copy">
+              <strong>Make your {draftMove}</strong>
+              <span>
+                {generatedAssets.selectionAssets[draftMove]?.name ??
+                  "Describe any object, creature, or weapon"}
+              </span>
+            </div>
+            <div className="asset-forge__controls">
+              <input
+                type="text"
+                value={assetPrompt}
+                minLength={4}
+                maxLength={280}
+                placeholder={`e.g. ${
+                  draftMove === "rock"
+                    ? "molten obsidian soccer ball"
+                    : draftMove === "paper"
+                      ? "holographic origami dragon"
+                      : "golden skeleton raven shears"
+                }`}
+                aria-label={`Describe your custom ${draftMove}`}
+                disabled={isGenerating}
+                onChange={(event) => setAssetPrompt(event.target.value)}
+              />
+              <button
+                type="submit"
+                disabled={assetPrompt.trim().length < 4 || isGenerating || preview !== null}
+              >
+                {generatedAssets.generatingMove === draftMove ? "Forging…" : "Generate"}
+              </button>
+            </div>
+            {generatedAssets.error ? (
+              <small className="asset-forge__status asset-forge__status--error">
+                {generatedAssets.error}
+              </small>
+            ) : generatedAssets.generationState === "ready" &&
+              generatedAssets.selectionAssets[draftMove] ? (
+              <small className="asset-forge__status">Ready — it has replaced the default model.</small>
+            ) : null}
+          </form>
+        ) : null}
 
         {actionBar}
       </section>

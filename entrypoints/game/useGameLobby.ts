@@ -56,7 +56,7 @@ export interface GameLobbyState {
   retry: () => void;
   role: LobbyRole;
   status: LobbyStatus;
-  submitMove: (move: RpsMove) => Promise<void>;
+  submitMove: (move: RpsMove, assetId?: string | null) => Promise<void>;
   userId: string | null;
 }
 
@@ -276,7 +276,7 @@ export function useGameLobby({
   }, [canJoin, isJoining, lobby, userId, viewerHandle]);
 
   const submitMove = useCallback(
-    async (move: RpsMove) => {
+    async (move: RpsMove, assetId: string | null = null) => {
       const supabase = getSupabaseClient();
       if (
         !supabase ||
@@ -294,7 +294,12 @@ export function useGameLobby({
       try {
         const { data, error: moveError } = await supabase
           .from("rps_moves")
-          .insert({ game_slug: lobby.slug, user_id: userId, choice: move })
+          .insert({
+            game_slug: lobby.slug,
+            user_id: userId,
+            choice: move,
+            asset_id: assetId,
+          })
           .select("choice")
           .single();
         if (moveError) throw moveError;
