@@ -676,6 +676,9 @@ button {
   align-content: start;
   gap: 0;
   padding: 0 12px 6px;
+  /* Cancel the pill's own inset so the text lands on the card's content edge,
+     lining up with the seat grid and status text below. */
+  margin-right: -12px;
   border-radius: 14px;
   color: var(--text);
   background: var(--bg-deep);
