@@ -111,7 +111,6 @@ export function GameSetupCard({
                   {wagerCents === null ? "Enter an amount above $0" : "USD per player"}
                 </small>
               </div>
-              <p className="game-setup-note">Concept wager only · no money is moved</p>
             </div>
           ) : (
             <div className="game-setup-waiting" aria-live="polite">

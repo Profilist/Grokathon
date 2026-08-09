@@ -1262,14 +1262,6 @@ h1 {
   font-size: 9px;
 }
 
-.game-setup-note {
-  grid-column: 1 / -1;
-  margin: -4px 0 0;
-  color: var(--muted);
-  font-size: 9px;
-  text-align: center;
-}
-
 .game-setup-waiting {
   display: grid;
   place-content: center;
@@ -1341,8 +1333,7 @@ h1 {
     font-size: 17px;
   }
 
-  .wager-picker > label,
-  .game-setup-note {
+  .wager-picker > label {
     display: none;
   }
 
