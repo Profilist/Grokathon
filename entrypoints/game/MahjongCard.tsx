@@ -13,7 +13,9 @@ import type {
 } from "../../src/mahjong/types";
 import { useMahjongGame } from "./useMahjongGame";
 import { formatCents } from "../../src/games/catalog";
+import { ArenaBackdrop } from "./ArenaBackdrop";
 import grokAvatar from "../../assets/grok.jpeg";
+import arenaSpace3Video from "../../assets/arena-space-3.mp4";
 
 type Props = {
   gameId: string;
@@ -177,6 +179,7 @@ function MahjongTable({
   return (
     <div className="mahjong-table-shell">
       <div className="mahjong-stage">
+        <ArenaBackdrop src={arenaSpace3Video} className="mahjong-stage__backdrop" />
         {webGlAvailable ? (
           <ThreeErrorBoundary fallback={<DomTable round={view.round!} />}>
             <ThreeGameView
