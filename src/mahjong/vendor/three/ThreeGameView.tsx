@@ -55,7 +55,6 @@ const tableRailOuterHalfSize = tableHalfSize + tableRailWidth;
 const sceneBackgroundColor = "#101514";
 const sceneToneMapping = THREE.ACESFilmicToneMapping;
 const sceneToneMappingExposure = 1.12;
-const cameraTarget: Vec3 = [0, 0, 0];
 /** Closest orbit distance relative to the default camera position (2.5 = 250% zoom). */
 const MAX_BOARD_ZOOM = 2.5;
 const rapierRigidBodyType = {
@@ -80,37 +79,43 @@ function cameraDistance(position: Vec3): number {
 function makeCameraPreset(
   preset: Omit<CameraPreset, "minDistance" | "target"> & {
     minDistance?: number;
+    target?: Vec3;
   },
 ): CameraPreset {
   const defaultDistance = cameraDistance(preset.position);
   return {
     ...preset,
     minDistance: preset.minDistance ?? defaultDistance / MAX_BOARD_ZOOM,
-    target: cameraTarget,
+    // Bias look-at toward the near hand so upright tile faces read clearly.
+    target: preset.target ?? [0, 0.14, 0.62],
   };
 }
 
 const cameraPresets = {
+  // Lower / flatter seat-side view so the player's upright hand faces the lens.
   desktop: makeCameraPreset({
-    position: [0, 2.95, 7.35],
-    fov: 40,
-    maxDistance: 10.4,
-    minPolarAngle: Math.PI / 4.2,
-    maxPolarAngle: Math.PI / 2.35,
+    position: [0, 1.95, 6.45],
+    fov: 42,
+    maxDistance: 9.6,
+    minPolarAngle: Math.PI / 3.5,
+    maxPolarAngle: Math.PI / 2.15,
+    target: [0, 0.16, 0.72],
   }),
   narrow: makeCameraPreset({
-    position: [0, 4.8, 9.8],
-    fov: 48,
-    maxDistance: 14.2,
-    minPolarAngle: Math.PI / 4.6,
-    maxPolarAngle: Math.PI / 2.6,
+    position: [0, 3.15, 8.15],
+    fov: 50,
+    maxDistance: 12.4,
+    minPolarAngle: Math.PI / 3.8,
+    maxPolarAngle: Math.PI / 2.35,
+    target: [0, 0.18, 0.85],
   }),
   mobilePortrait: makeCameraPreset({
-    position: [0, 6.8, 9.8],
-    fov: 54,
-    maxDistance: 15.6,
-    minPolarAngle: Math.PI / 5.8,
-    maxPolarAngle: Math.PI / 3,
+    position: [0, 4.35, 8.35],
+    fov: 56,
+    maxDistance: 13.8,
+    minPolarAngle: Math.PI / 4.4,
+    maxPolarAngle: Math.PI / 2.55,
+    target: [0, 0.2, 0.95],
   }),
 } satisfies Record<string, CameraPreset>;
 
@@ -303,6 +308,7 @@ export function ThreeGameView({
     useState(false);
   const cameraPreset = useResponsiveCameraPreset();
   const cameraPosition = rotateCameraPosition(cameraPreset.position, viewSeat);
+  const orbitTarget = rotateCameraPosition(cameraPreset.target, viewSeat);
   const lastEventIndexRef = useRef(eventIndex);
   const initialEventIndexRef = useRef(eventIndex);
   const lastRoundKeyRef = useRef(roundKey);
@@ -864,7 +870,7 @@ export function ThreeGameView({
           enablePan={false}
           enableDamping
           zoomSpeed={0.85}
-          target={cameraPreset.target}
+          target={orbitTarget}
           minDistance={cameraPreset.minDistance}
           maxDistance={cameraPreset.maxDistance}
           maxPolarAngle={cameraPreset.maxPolarAngle}
@@ -926,8 +932,9 @@ function CameraPresetSync({ preset, viewSeat }: { preset: CameraPreset; viewSeat
   const { camera } = useThree();
 
   useLayoutEffect(() => {
+    const target = rotateCameraPosition(preset.target, viewSeat);
     camera.position.set(...rotateCameraPosition(preset.position, viewSeat));
-    camera.lookAt(...preset.target);
+    camera.lookAt(...target);
     if (camera instanceof THREE.PerspectiveCamera) {
       camera.fov = preset.fov;
       camera.updateProjectionMatrix();
