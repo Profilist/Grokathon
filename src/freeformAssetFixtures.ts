@@ -31,6 +31,7 @@ function node(id: string, op: FreeformShapeOp, overrides: Partial<FreeformShapeN
     points: [],
     radii: [],
     polygon: [],
+    holes: [],
     profile: [],
     ...overrides,
   };

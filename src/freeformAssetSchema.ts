@@ -11,10 +11,13 @@ export type FreeformShapeOp =
   | "box"
   | "capsule"
   | "torus"
+  | "ring"
+  | "wedge"
   | "cylinder"
   | "cone"
   | "sweep"
   | "extrude"
+  | "silhouette"
   | "lathe"
   | "union"
   | "smoothUnion"
@@ -67,6 +70,7 @@ export interface FreeformShapeNode {
   points: Vec3[];
   radii: number[];
   polygon: Vec2[];
+  holes?: Vec2[][];
   profile: Vec2[];
 }
 
@@ -230,6 +234,7 @@ export const FREEFORM_ASSET_PROGRAM_JSON_SCHEMA = {
                 "points",
                 "radii",
                 "polygon",
+                "holes",
                 "profile",
               ],
               properties: {
@@ -241,10 +246,13 @@ export const FREEFORM_ASSET_PROGRAM_JSON_SCHEMA = {
                     "box",
                     "capsule",
                     "torus",
+                    "ring",
+                    "wedge",
                     "cylinder",
                     "cone",
                     "sweep",
                     "extrude",
+                    "silhouette",
                     "lathe",
                     "union",
                     "smoothUnion",
@@ -289,8 +297,19 @@ export const FREEFORM_ASSET_PROGRAM_JSON_SCHEMA = {
                 polygon: {
                   type: "array",
                   minItems: 0,
-                  maxItems: 20,
+                  maxItems: 32,
                   items: point2Schema,
+                },
+                holes: {
+                  type: "array",
+                  minItems: 0,
+                  maxItems: 6,
+                  items: {
+                    type: "array",
+                    minItems: 3,
+                    maxItems: 24,
+                    items: point2Schema,
+                  },
                 },
                 profile: {
                   type: "array",
@@ -371,10 +390,13 @@ const SHAPE_OPS = new Set<FreeformShapeOp>([
   "box",
   "capsule",
   "torus",
+  "ring",
+  "wedge",
   "cylinder",
   "cone",
   "sweep",
   "extrude",
+  "silhouette",
   "lathe",
   "union",
   "smoothUnion",
@@ -430,25 +452,148 @@ function validateMaterial(value: unknown, index: number) {
   }
 }
 
+function samePoint(left: Vec2, right: Vec2) {
+  return Math.abs(left[0] - right[0]) < 1e-7 && Math.abs(left[1] - right[1]) < 1e-7;
+}
+
+function cleanPolygon(polygon: Vec2[]) {
+  const cleaned = polygon.filter((point, index) => index === 0 || !samePoint(point, polygon[index - 1]!));
+  if (cleaned.length > 1 && samePoint(cleaned[0]!, cleaned.at(-1)!)) cleaned.pop();
+  for (let pass = 0; pass < polygon.length && cleaned.length >= 3; pass += 1) {
+    const redundant = cleaned.findIndex((point, index) =>
+      Math.abs(cross(cleaned[(index + cleaned.length - 1) % cleaned.length]!, point, cleaned[(index + 1) % cleaned.length]!)) < 1e-7);
+    if (redundant < 0) break;
+    cleaned.splice(redundant, 1);
+  }
+  return cleaned;
+}
+
+function cross(left: Vec2, middle: Vec2, right: Vec2) {
+  return (middle[0] - left[0]) * (right[1] - left[1]) -
+    (middle[1] - left[1]) * (right[0] - left[0]);
+}
+
+function signedPolygonArea(polygon: Vec2[]) {
+  return polygon.reduce((area, point, index) => {
+    const next = polygon[(index + 1) % polygon.length]!;
+    return area + point[0] * next[1] - next[0] * point[1];
+  }, 0) * 0.5;
+}
+
+function pointOnSegment(point: Vec2, start: Vec2, end: Vec2) {
+  const cross = (end[0] - start[0]) * (point[1] - start[1]) - (end[1] - start[1]) * (point[0] - start[0]);
+  if (Math.abs(cross) > 1e-7) return false;
+  return point[0] >= Math.min(start[0], end[0]) - 1e-7 &&
+    point[0] <= Math.max(start[0], end[0]) + 1e-7 &&
+    point[1] >= Math.min(start[1], end[1]) - 1e-7 &&
+    point[1] <= Math.max(start[1], end[1]) + 1e-7;
+}
+
+function segmentsIntersect(a: Vec2, b: Vec2, c: Vec2, d: Vec2) {
+  const abC = cross(a, b, c);
+  const abD = cross(a, b, d);
+  const cdA = cross(c, d, a);
+  const cdB = cross(c, d, b);
+  if (((abC > 1e-7 && abD < -1e-7) || (abC < -1e-7 && abD > 1e-7)) &&
+    ((cdA > 1e-7 && cdB < -1e-7) || (cdA < -1e-7 && cdB > 1e-7))) return true;
+  return pointOnSegment(c, a, b) || pointOnSegment(d, a, b) || pointOnSegment(a, c, d) || pointOnSegment(b, c, d);
+}
+
+function segmentsProperlyIntersect(a: Vec2, b: Vec2, c: Vec2, d: Vec2) {
+  const abC = cross(a, b, c);
+  const abD = cross(a, b, d);
+  const cdA = cross(c, d, a);
+  const cdB = cross(c, d, b);
+  return ((abC > 1e-7 && abD < -1e-7) || (abC < -1e-7 && abD > 1e-7)) &&
+    ((cdA > 1e-7 && cdB < -1e-7) || (cdA < -1e-7 && cdB > 1e-7));
+}
+
+export function normalizeFreeformPolygon(polygon: Vec2[]) {
+  const normalized = cleanPolygon(polygon).map((point) => [...point] as Vec2);
+  const maximumPasses = normalized.length * normalized.length;
+  for (let pass = 0; pass < maximumPasses; pass += 1) {
+    let crossing: [number, number] | null = null;
+    for (let left = 0; left < normalized.length && !crossing; left += 1) {
+      const leftNext = (left + 1) % normalized.length;
+      for (let right = left + 1; right < normalized.length; right += 1) {
+        const rightNext = (right + 1) % normalized.length;
+        if (leftNext === right || rightNext === left) continue;
+        if (segmentsProperlyIntersect(normalized[left]!, normalized[leftNext]!, normalized[right]!, normalized[rightNext]!)) {
+          crossing = [leftNext, right];
+          break;
+        }
+      }
+    }
+    if (!crossing) break;
+    const [start, end] = crossing;
+    normalized.splice(start, end - start + 1, ...normalized.slice(start, end + 1).reverse());
+  }
+  return normalized;
+}
+
 function polygonSelfIntersects(polygon: Vec2[]) {
-  const orientation = (a: Vec2, b: Vec2, c: Vec2) =>
-    Math.sign((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]));
-  const intersects = (a: Vec2, b: Vec2, c: Vec2, d: Vec2) => {
-    const abC = orientation(a, b, c);
-    const abD = orientation(a, b, d);
-    const cdA = orientation(c, d, a);
-    const cdB = orientation(c, d, b);
-    return abC !== 0 && abD !== 0 && cdA !== 0 && cdB !== 0 && abC !== abD && cdA !== cdB;
-  };
   for (let left = 0; left < polygon.length; left += 1) {
     const leftNext = (left + 1) % polygon.length;
     for (let right = left + 1; right < polygon.length; right += 1) {
       const rightNext = (right + 1) % polygon.length;
       if (left === right || leftNext === right || rightNext === left) continue;
-      if (intersects(polygon[left]!, polygon[leftNext]!, polygon[right]!, polygon[rightNext]!)) return true;
+      if (segmentsIntersect(polygon[left]!, polygon[leftNext]!, polygon[right]!, polygon[rightNext]!)) return true;
     }
   }
   return false;
+}
+
+function polygonsIntersect(left: Vec2[], right: Vec2[]) {
+  return left.some((point, index) => right.some((other, otherIndex) =>
+    segmentsIntersect(point, left[(index + 1) % left.length]!, other, right[(otherIndex + 1) % right.length]!)));
+}
+
+function pointInPolygon(point: Vec2, polygon: Vec2[]) {
+  if (polygon.some((start, index) => pointOnSegment(point, start, polygon[(index + 1) % polygon.length]!))) return false;
+  let inside = false;
+  for (let index = 0, previous = polygon.length - 1; index < polygon.length; previous = index, index += 1) {
+    const [ax, ay] = polygon[previous]!;
+    const [bx, by] = polygon[index]!;
+    if ((ay > point[1]) !== (by > point[1]) && point[0] < ((bx - ax) * (point[1] - ay)) / (by - ay) + ax) inside = !inside;
+  }
+  return inside;
+}
+
+function polygonCenter(polygon: Vec2[]): Vec2 {
+  const total = polygon.reduce(([x, y], point) => [x + point[0], y + point[1]] as Vec2, [0, 0]);
+  return [total[0] / polygon.length, total[1] / polygon.length];
+}
+
+function fitHoleInsideOutline(hole: Vec2[], outer: Vec2[]) {
+  const center = polygonCenter(hole);
+  if (!pointInPolygon(center, outer)) return null;
+  for (let attempt = 0; attempt <= 20; attempt += 1) {
+    const scale = Math.pow(0.95, attempt);
+    const candidate = hole.map(([x, y]) => [
+      center[0] + (x - center[0]) * scale,
+      center[1] + (y - center[1]) * scale,
+    ] as Vec2);
+    if (candidate.every((point) => pointInPolygon(point, outer)) && !polygonsIntersect(outer, candidate)) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
+export function normalizeFreeformSilhouette(polygon: Vec2[], holes: Vec2[][] = []) {
+  const outer = normalizeFreeformPolygon(polygon);
+  const normalizedHoles = holes.map((hole) => normalizeFreeformPolygon(hole));
+  const fittedHoles = normalizedHoles.map((hole) => fitHoleInsideOutline(hole, outer));
+  return { outer, holes: fittedHoles };
+}
+
+function validateSimpleRing(polygon: Vec2[], label: string) {
+  const cleaned = normalizeFreeformPolygon(polygon);
+  if (polygonSelfIntersects(cleaned)) throw new Error(`${label} polygon self-intersects`);
+  if (cleaned.length < 3 || Math.abs(signedPolygonArea(cleaned)) < 1e-4) {
+    throw new Error(`${label} needs a nonzero polygon`);
+  }
+  return cleaned;
 }
 
 function validateNode(value: unknown, partIndex: number, nodeIndex: number) {
@@ -490,8 +635,15 @@ function validateNode(value: unknown, partIndex: number, nodeIndex: number) {
     value.radii.length > 16 ||
     value.radii.some((radius) => !numberIn(radius, 0.01, 1.5)) ||
     !Array.isArray(value.polygon) ||
-    value.polygon.length > 20 ||
+    value.polygon.length > 32 ||
     value.polygon.some((point) => !vectorIn(point, 2, -3, 3)) ||
+    (value.holes !== undefined && (
+      !Array.isArray(value.holes) ||
+      value.holes.length > 6 ||
+      value.holes.some((hole) =>
+        !Array.isArray(hole) || hole.length < 3 || hole.length > 24 ||
+        hole.some((point) => !vectorIn(point, 2, -3, 3)))
+    )) ||
     !Array.isArray(value.profile) ||
     value.profile.length > 20 ||
     value.profile.some((point) => !vectorIn(point, 2, -3, 3))
@@ -500,7 +652,7 @@ function validateNode(value: unknown, partIndex: number, nodeIndex: number) {
   }
 
   const node = value as unknown as FreeformShapeNode;
-  const primitiveOps = new Set<FreeformShapeOp>(["sphere", "box", "torus", "cylinder", "cone", "extrude", "lathe"]);
+  const primitiveOps = new Set<FreeformShapeOp>(["sphere", "box", "torus", "ring", "wedge", "cylinder", "cone", "extrude", "silhouette", "lathe"]);
   if (primitiveOps.has(node.op) && node.inputs.length !== 0) throw new Error(`${label} primitive cannot have inputs`);
   if ((node.op === "capsule" || node.op === "sweep") && node.inputs.length !== 0) {
     throw new Error(`${label} sweep cannot have inputs`);
@@ -512,10 +664,29 @@ function validateNode(value: unknown, partIndex: number, nodeIndex: number) {
   if (node.op === "extrude" && polygonSelfIntersects(node.polygon)) {
     throw new Error(`${label} extrusion polygon self-intersects`);
   }
+  if (node.op === "silhouette") {
+    const outer = validateSimpleRing(node.polygon, `${label} silhouette`);
+    const holes = (node.holes ?? []).map((hole, index) =>
+      validateSimpleRing(hole, `${label} silhouette hole ${index}`));
+    const fittedHoles = normalizeFreeformSilhouette(outer, holes).holes;
+    fittedHoles.forEach((hole, index) => {
+      if (!hole) {
+        throw new Error(`${label} silhouette hole ${index} must be strictly inside its outline`);
+      }
+      fittedHoles.slice(0, index).forEach((other) => {
+        if (!other) return;
+        if (polygonsIntersect(hole, other) || pointInPolygon(hole[0]!, other) || pointInPolygon(other[0]!, hole)) {
+          throw new Error(`${label} silhouette holes cannot overlap`);
+        }
+      });
+    });
+  }
   if (node.op === "lathe" && (node.profile.length < 3 || node.profile.some(([radius]) => radius < 0))) {
     throw new Error(`${label} lathe needs a nonnegative profile`);
   }
-  if (node.op === "torus" && node.tube >= node.radius) throw new Error(`${label} torus tube must be smaller than its radius`);
+  if ((node.op === "torus" || node.op === "ring") && node.tube >= node.radius) {
+    throw new Error(`${label} ${node.op} tube must be smaller than its radius`);
+  }
   if ((node.op === "union" || node.op === "smoothUnion" || node.op === "intersect") && node.inputs.length < 2) {
     throw new Error(`${label} operation needs at least two inputs`);
   }
@@ -533,6 +704,10 @@ function validatePartGraph(part: FreeformPart, partIndex: number) {
     nodes.set(node.id, node);
   });
   if (!nodes.has(part.rootNodeId)) throw new Error(`Part ${partIndex} root node does not exist`);
+  const directNode = part.nodes.find(({ op }) => op === "silhouette" || op === "ring");
+  if (directNode && (part.nodes.length !== 1 || part.rootNodeId !== directNode.id)) {
+    throw new Error(`Part ${partIndex} ${directNode.op} must be the part's only root node`);
+  }
   part.nodes.forEach((node) => {
     node.inputs.forEach((input) => {
       if (!nodes.has(input)) throw new Error(`Part ${partIndex} node ${node.id} references missing input ${input}`);

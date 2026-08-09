@@ -10,8 +10,51 @@ import {
   MAX_FREEFORM_TRIANGLES,
   buildFreeformAsset,
   disposeFreeformAsset,
+  type FreeformAssetProgram,
   validateFreeformAssetProgram,
 } from "./freeformAssetProgram";
+
+function silhouetteProgram(): FreeformAssetProgram {
+  const program = structuredClone(freeformMeteor);
+  const source = program.parts[0]!.nodes[0]!;
+  const silhouette = {
+    ...source,
+    id: "outline",
+    op: "silhouette" as const,
+    inputs: [],
+    position: [0, 0, 0] as [number, number, number],
+    rotation: [0, 0, 0] as [number, number, number],
+    scale: [1, 1, 1] as [number, number, number],
+    height: 0.16,
+    roundness: 0.025,
+    polygon: [
+      [-1, -1],
+      [1, -1],
+      [1, 1],
+      [-1, 1],
+    ] as Array<[number, number]>,
+    holes: [[
+      [-0.35, -0.35],
+      [-0.35, 0.35],
+      [0.35, 0.35],
+      [0.35, -0.35],
+    ]] as Array<Array<[number, number]>>,
+  };
+  program.name = "Silhouette test";
+  program.parts = [{
+    ...program.parts[0]!,
+    rootNodeId: silhouette.id,
+    nodes: [silhouette],
+    attachment: {
+      ...program.parts[0]!.attachment,
+      offset: [0, 0, 0],
+      rotation: [0, 0, 0],
+      scale: [1, 1, 1],
+    },
+  }];
+  program.presentation = { rotation: [0, 0, 0], scale: 1 };
+  return program;
+}
 
 describe("freeform asset programs", () => {
   it.each(freeformFixtures.map((program) => [program.name, program] as const))(
@@ -130,6 +173,88 @@ describe("freeform asset programs", () => {
     } finally {
       disposeFreeformAsset(built.group);
     }
+  });
+
+  it("directly extrudes a crisp silhouette while preserving holes", () => {
+    const built = buildFreeformAsset(silhouetteProgram());
+    try {
+      expect(built.triangles).toBeGreaterThan(20);
+      const mesh = built.group.children[0] as THREE.Mesh;
+      built.group.updateMatrixWorld(true);
+      const raycaster = new THREE.Raycaster();
+      raycaster.set(new THREE.Vector3(0, 0, 5), new THREE.Vector3(0, 0, -1));
+      expect(raycaster.intersectObject(mesh)).toHaveLength(0);
+      raycaster.set(new THREE.Vector3(0.8, 0, 5), new THREE.Vector3(0, 0, -1));
+      expect(raycaster.intersectObject(mesh).length).toBeGreaterThan(0);
+    } finally {
+      disposeFreeformAsset(built.group);
+    }
+  });
+
+  it("builds a guaranteed-open extruded ring for handles and eyelets", () => {
+    const program = silhouetteProgram();
+    const node = program.parts[0]!.nodes[0]!;
+    node.op = "ring";
+    node.radius = 0.8;
+    node.tube = 0.2;
+    node.polygon = [];
+    node.holes = [];
+    const built = buildFreeformAsset(program);
+    try {
+      const mesh = built.group.children[0] as THREE.Mesh;
+      built.group.updateMatrixWorld(true);
+      const raycaster = new THREE.Raycaster();
+      raycaster.set(new THREE.Vector3(0, 0, 5), new THREE.Vector3(0, 0, -1));
+      expect(raycaster.intersectObject(mesh)).toHaveLength(0);
+      raycaster.set(new THREE.Vector3(1.05, 0, 5), new THREE.Vector3(0, 0, -1));
+      expect(raycaster.intersectObject(mesh).length).toBeGreaterThan(0);
+    } finally {
+      disposeFreeformAsset(built.group);
+    }
+  });
+
+  it("builds a sharp elongated wedge without SDF blurring", () => {
+    const program = silhouetteProgram();
+    const node = program.parts[0]!.nodes[0]!;
+    node.op = "wedge";
+    node.size = [0.35, 2.4, 0.1];
+    node.amount = 0.4;
+    node.polygon = [];
+    node.holes = [];
+    const built = buildFreeformAsset(program);
+    try {
+      const geometry = (built.group.children[0] as THREE.Mesh).geometry;
+      const size = geometry.boundingBox!.getSize(new THREE.Vector3());
+      expect(size.y / size.x).toBeGreaterThan(5);
+      expect(size.z).toBeGreaterThanOrEqual(0.1);
+      expect(size.z).toBeLessThan(0.2);
+    } finally {
+      disposeFreeformAsset(built.group);
+    }
+  });
+
+  it("deterministically untangles crossed silhouette point ordering", () => {
+    const crossed = silhouetteProgram();
+    crossed.parts[0]!.nodes[0]!.polygon = [[-1, -1], [1, 1], [-1, 1], [1, -1]];
+    expect(() => validateFreeformAssetProgram(crossed)).not.toThrow();
+    const built = buildFreeformAsset(crossed);
+    try {
+      expect(built.triangles).toBeGreaterThan(20);
+    } finally {
+      disposeFreeformAsset(built.group);
+    }
+  });
+
+  it("rejects silhouette holes outside the outline", () => {
+    const invalid = silhouetteProgram();
+    invalid.parts[0]!.nodes[0]!.holes = [[[1.2, 1.2], [1.4, 1.2], [1.4, 1.4], [1.2, 1.4]]];
+    expect(() => validateFreeformAssetProgram(invalid)).toThrow(/strictly inside/);
+  });
+
+  it("keeps silhouette geometry isolated from SDF graph nodes", () => {
+    const invalid = silhouetteProgram();
+    invalid.parts[0]!.nodes.push({ ...invalid.parts[0]!.nodes[0]!, id: "extra", op: "sphere" });
+    expect(() => validateFreeformAssetProgram(invalid)).toThrow(/only root node/);
   });
 
   it("rejects a texture material outside the declared palette", () => {

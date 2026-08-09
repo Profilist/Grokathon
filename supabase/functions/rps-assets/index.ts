@@ -31,7 +31,7 @@ const corsHeaders = {
 };
 
 const SYSTEM_PROMPT =
-  `You author a universal constrained 3D asset program for a trusted SDF/CSG compiler. Return only a version 3 program matching the supplied schema.
+  `You author a universal constrained 3D asset program for a trusted geometry compiler. Return only a version 3 program matching the supplied schema.
 
 The requested Rock, Paper, or Scissors move is a gameplay class, not a required literal object. Preserve the requested move field exactly while creating the user's visual concept.
 
@@ -41,20 +41,26 @@ Choose surfaceDetailMode by what carries the visual identity:
 - geometry: real structures that change the silhouette, such as blades, handles, horns, wings, limbs, crystals, holes, or articulated pieces.
 
 Build coherent shapes with a flat node graph inside each material part:
-- Primitives: sphere, box, capsule, torus, cylinder, cone.
-- Freeform: sweep, extrude, lathe.
+- Primitives: sphere, box, capsule, torus, ring, wedge, cylinder, cone. ring is a flat extruded XY loop viewed face-on from +Z; radius is its outside radius, tube is its rim width, height is its depth, and scale can make it elliptical. For a clearly visible ring rim, set tube to 25-50% of radius. wedge is a flat tapered XY plate: size is [baseWidth, length, depth], amount from -1 to 1 shifts its narrow tip sideways, and roundness bevels its edges. Use wedge for simple blades, fins, arrowheads, wings, teeth, and tapered plates.
+- Freeform: sweep, extrude, silhouette, lathe.
 - CSG: union, smoothUnion, subtract, intersect.
 - Modifiers: twist, bend, noise.
 - Prefer connected parts, but a union may contain multiple separate solids when they share one material. Intersections and subtraction cutters must overlap their target.
 - Keep blades, fins, panels, tubes, and other narrow features at least 0.05 units thick so the realtime mesher can sample them reliably.
+- Use silhouette for any part whose identity depends on a recognizable flat outline: blades, scissors, knives, tools, wings, leaves, paper, plates, signs, and stylized limbs. A silhouette part has exactly one silhouette node as its root and no other nodes. polygon is its outer 2D outline, holes contains true openings, height is its depth, and roundness is its bevel. Use 6-20 deliberate outline points instead of approximating a named object with a sphere, capsule, or box.
+- List every polygon and hole point in continuous clockwise or counterclockwise perimeter order. Trace each boundary exactly once without crossing it, jumping across the interior, or repeating the first point at the end.
+- Prefer a separate ring part for loops, eyelets, finger handles, and simple openings instead of drawing a complicated outer polygon and hole together. Attach the ring to the nearby structural part. Use silhouette holes only when the opening truly belongs inside one broad custom outline.
+- Silhouette polygon and hole coordinates are local XY coordinates viewed from +Z. Keep the dominant aspect ratio and distinctive contour of the requested object. Use holes for finger rings and other negative space; never fill an opening with solid geometry. Each hole must be fully inside the outer polygon without touching it or another hole.
+- For multi-part tools, give each semantic material/component its own attached part when appropriate. A knife needs a long tapered wedge or silhouette blade and a narrower handle. Scissors should use two narrow crossed wedge blades, separate ring parts for open finger handles, and a small pivot. Do not collapse a recognizable multi-part object into one rounded blob.
 - Exactly one root part has parentPartId "". Other parts attach to an earlier semantic part.
 - Every attachment offset, rotation, scale, and anchor direction is exactly three JSON numbers. Root attachment offset and rotation are [0,0,0] with scale [1,1,1]. Keep attachment offsets between -2 and 2 and anchor direction components between -3 and 3. Always write decimal points; never split 0.6 into 0,6.
-- Keep a recognizable silhouette with 1-6 parts and 1-8 nodes per part.
+- Before emitting JSON, mentally budget the dominant axis, overall width-to-height ratio, 2-5 indispensable components, and negative spaces. Encode those features directly in the first and only response.
+- Keep a recognizable silhouette with 1-6 parts and 1-8 nodes per non-silhouette part.
 - Y is up and the thumbnail camera looks from +Z.
 - Use resolution 20-24 and keep coordinates roughly within -1.5 to 1.5.
 - Use texture/decal detail instead of thin floating boxes.
 
-All schema fields are required. For fields ignored by an operation use neutral values: inputs [], position/rotation [0,0,0], scale/size [1,1,1], radius 0.5, radiusTop 0.2, radiusBottom 0.5, tube 0.1, height 1, roundness 0.05, smoothness 0.12, amount 0.1, frequency 5, and points/radii/polygon/profile []. Do not write code, raw vertices, base64, text labels, trademarks, or external file references.`;
+All schema fields are required. For fields ignored by an operation use neutral values: inputs [], position/rotation [0,0,0], scale/size [1,1,1], radius 0.5, radiusTop 0.2, radiusBottom 0.5, tube 0.1, height 1, roundness 0.05, smoothness 0.12, amount 0.1, frequency 5, and points/radii/polygon/holes/profile []. Do not write code, raw vertices, base64, text labels, trademarks, or external file references.`;
 
 type RequestBody = {
   operation?: "generate" | "asset" | "latest" | "revealed";

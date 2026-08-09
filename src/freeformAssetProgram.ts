@@ -3,6 +3,7 @@ import { mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
 import {
   MAX_FREEFORM_TRIANGLES,
+  normalizeFreeformSilhouette,
   validateFreeformAssetProgram,
   type FreeformAnchor,
   type FreeformAssetProgram,
@@ -66,6 +67,19 @@ function polygonSdf(x: number, y: number, polygon: Vec2[]) {
   return Math.sqrt(minimumDistanceSquared) * (inside ? -1 : 1);
 }
 
+function wedgePolygon(node: FreeformShapeNode): Vec2[] {
+  const halfWidth = node.size[0] / 2;
+  const halfLength = node.size[1] / 2;
+  const tipX = THREE.MathUtils.clamp(node.amount, -1, 1) * halfWidth;
+  const tipHalfWidth = Math.min(halfWidth * 0.12, Math.max(node.roundness, halfWidth * 0.025));
+  return [
+    [-halfWidth, -halfLength],
+    [halfWidth, -halfLength],
+    [tipX + tipHalfWidth, halfLength],
+    [tipX - tipHalfWidth, halfLength],
+  ];
+}
+
 function sweepSdf(x: number, y: number, z: number, points: Vec3[], radii: number[]) {
   let distance = Number.POSITIVE_INFINITY;
   for (let index = 0; index < points.length - 1; index += 1) {
@@ -118,6 +132,15 @@ function createShapeEvaluator(part: FreeformPart) {
       case "torus":
         local = (x, y, z) => Math.hypot(Math.hypot(x, z) - node.radius, y) - node.tube;
         break;
+      case "ring":
+        throw new Error(`Part ${part.id} ring must use direct geometry`);
+      case "wedge":
+        local = (x, y, z) => {
+          const planar = polygonSdf(x, y, wedgePolygon(node));
+          const depth = Math.abs(z) - node.size[2] * 0.5;
+          return Math.hypot(Math.max(planar, 0), Math.max(depth, 0)) + Math.min(Math.max(planar, depth), 0);
+        };
+        break;
       case "cylinder":
         local = (x, y, z) => {
           const radial = Math.hypot(x, z) - node.radius;
@@ -140,6 +163,8 @@ function createShapeEvaluator(part: FreeformPart) {
           return Math.hypot(Math.max(planar, 0), Math.max(depth, 0)) + Math.min(Math.max(planar, depth), 0);
         };
         break;
+      case "silhouette":
+        throw new Error(`Part ${part.id} silhouette must use direct geometry`);
       case "lathe":
         local = (x, y, z) => polygonSdf(Math.hypot(x, z), y, node.profile);
         break;
@@ -242,6 +267,19 @@ function createShapeBounds(part: FreeformPart) {
         );
         break;
       }
+      case "ring": {
+        bounds = new THREE.Box3(
+          new THREE.Vector3(-node.radius, -node.radius, -node.height / 2),
+          new THREE.Vector3(node.radius, node.radius, node.height / 2),
+        );
+        break;
+      }
+      case "wedge":
+        bounds = new THREE.Box3(
+          new THREE.Vector3(-node.size[0] / 2, -node.size[1] / 2, -node.size[2] / 2),
+          new THREE.Vector3(node.size[0] / 2, node.size[1] / 2, node.size[2] / 2),
+        );
+        break;
       case "cylinder":
       case "cone": {
         const radial = node.op === "cylinder" ? node.radius : Math.max(node.radiusTop, node.radiusBottom);
@@ -252,6 +290,12 @@ function createShapeBounds(part: FreeformPart) {
         break;
       }
       case "extrude": {
+        bounds = boundsFromPoints(node.polygon);
+        bounds.min.z = -node.height / 2;
+        bounds.max.z = node.height / 2;
+        break;
+      }
+      case "silhouette": {
         bounds = boundsFromPoints(node.polygon);
         bounds.min.z = -node.height / 2;
         bounds.max.z = node.height / 2;
@@ -380,9 +424,70 @@ function polygonizeTetrahedron(points: SamplePoint[], positions: number[], sdf: 
 
 function usesSphericalUv(part: FreeformPart) {
   const sourceNodes = part.nodes.filter(({ op }) =>
-    ["sphere", "box", "capsule", "torus", "cylinder", "cone", "sweep", "extrude", "lathe"].includes(op),
+    ["sphere", "box", "capsule", "torus", "ring", "wedge", "cylinder", "cone", "sweep", "extrude", "silhouette", "lathe"].includes(op),
   );
   return sourceNodes.length === 1 && sourceNodes[0]!.op === "sphere";
+}
+
+function createDirectExtrusion(part: FreeformPart) {
+  const node = part.nodes[0]!;
+  let shape: THREE.Shape;
+  let planarSize: THREE.Vector2;
+  let depth = node.height;
+  if (node.op === "ring") {
+    const rimWidth = Math.max(node.tube, node.radius * 0.25);
+    shape = new THREE.Shape();
+    shape.absellipse(0, 0, node.radius, node.radius, 0, Math.PI * 2, false);
+    const hole = new THREE.Path();
+    hole.absellipse(0, 0, node.radius - rimWidth, node.radius - rimWidth, 0, Math.PI * 2, true);
+    shape.holes.push(hole);
+    planarSize = new THREE.Vector2(node.radius * 2, node.radius * 2);
+  } else if (node.op === "wedge") {
+    shape = new THREE.Shape(wedgePolygon(node).map(([x, y]) => new THREE.Vector2(x, y)));
+    planarSize = new THREE.Vector2(node.size[0], node.size[1]);
+    depth = node.size[2];
+  } else {
+    const normalized = normalizeFreeformSilhouette(node.polygon, node.holes);
+    const outer = normalized.outer.map(([x, y]) => new THREE.Vector2(x, y));
+    if (!THREE.ShapeUtils.isClockWise(outer)) outer.reverse();
+    shape = new THREE.Shape(outer);
+    for (const holePoints of normalized.holes) {
+      if (!holePoints) throw new Error(`Part ${part.id} contains a silhouette hole outside its outline`);
+      const hole = holePoints.map(([x, y]) => new THREE.Vector2(x, y));
+      if (THREE.ShapeUtils.isClockWise(hole)) hole.reverse();
+      shape.holes.push(new THREE.Path(hole));
+    }
+    planarSize = new THREE.Box2().setFromPoints(outer).getSize(new THREE.Vector2());
+  }
+
+  const bevelSize = Math.min(
+    node.roundness,
+    depth * 0.45,
+    Math.min(planarSize.x, planarSize.y) * 0.2,
+  );
+  const geometry = new THREE.ExtrudeGeometry(shape, {
+    bevelEnabled: bevelSize > 1e-4,
+    bevelOffset: 0,
+    bevelSegments: 2,
+    bevelSize,
+    bevelThickness: bevelSize,
+    curveSegments: 4,
+    depth,
+    steps: 1,
+  });
+  geometry.translate(0, 0, -depth / 2);
+  geometry.applyMatrix4(new THREE.Matrix4().compose(
+    new THREE.Vector3(...node.position),
+    new THREE.Quaternion().setFromEuler(new THREE.Euler(...node.rotation)),
+    new THREE.Vector3(...node.scale),
+  ));
+  geometry.computeVertexNormals();
+  geometry.computeBoundingBox();
+  const center = geometry.boundingBox!.getCenter(new THREE.Vector3());
+  geometry.translate(-center.x, -center.y, -center.z);
+  geometry.computeBoundingBox();
+  geometry.computeBoundingSphere();
+  return geometry;
 }
 
 function createSdfGeometry(part: FreeformPart, resolution: number) {
@@ -591,7 +696,9 @@ export function buildFreeformAsset(
   let triangles = 0;
   try {
     program.parts.forEach((part) => {
-      const geometry = createSdfGeometry(part, program.quality.resolution);
+      const geometry = ["silhouette", "ring", "wedge"].includes(part.nodes[0]!.op) && part.nodes.length === 1
+        ? createDirectExtrusion(part)
+        : createSdfGeometry(part, program.quality.resolution);
       triangles += geometry.index ? geometry.index.count / 3 : geometry.getAttribute("position").count / 3;
       const mesh = new THREE.Mesh(geometry, materials[part.materialIndex]);
       mesh.name = part.name;
