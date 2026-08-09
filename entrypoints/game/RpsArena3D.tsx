@@ -65,7 +65,7 @@ const MOVES: RpsMove[] = ["rock", "paper", "scissors"];
 const SWAP_DURATION_MS = 280;
 
 const MOVE_META: Record<RpsMove, { color: number; label: string }> = {
-  rock: { color: 0x7c5cff, label: "Rock" },
+  rock: { color: 0x777a7d, label: "Rock" },
   paper: { color: 0x53d8ff, label: "Paper" },
   scissors: { color: 0xff4fc8, label: "Scissors" },
 };
@@ -80,33 +80,49 @@ function tagMove(group: THREE.Group, move: RpsMove) {
 
 function createRock() {
   const group = new THREE.Group();
-  const geometry = new THREE.IcosahedronGeometry(0.46, 1);
+  let geometry: THREE.BufferGeometry = new THREE.IcosahedronGeometry(0.48, 2);
+  if (geometry.index) {
+    const nonIndexed = geometry.toNonIndexed();
+    geometry.dispose();
+    geometry = nonIndexed;
+  }
   const positions = geometry.getAttribute("position") as THREE.BufferAttribute;
   for (let index = 0; index < positions.count; index += 1) {
     const x = positions.getX(index);
     const y = positions.getY(index);
     const z = positions.getZ(index);
-    const variation = 1 + Math.sin(index * 12.9898) * 0.08;
-    positions.setXYZ(index, x * variation, y * (1 + Math.cos(index * 4.1) * 0.05), z * variation);
+    const coarseNoise = Math.sin(x * 9.7 + y * 5.3 - z * 7.1) * 0.13;
+    const fineNoise = Math.sin(x * 21.1 - y * 13.7 + z * 17.3) * 0.055;
+    const variation = 1 + coarseNoise + fineNoise;
+    positions.setXYZ(
+      index,
+      x * variation * 1.1 + y * 0.045,
+      y * variation * 0.78,
+      z * variation * 0.9,
+    );
   }
+  positions.needsUpdate = true;
   geometry.computeVertexNormals();
-  const material = new THREE.MeshStandardMaterial({
-    color: MOVE_META.rock.color,
-    emissive: 0x291878,
-    emissiveIntensity: 0.85,
-    flatShading: true,
-    metalness: 0.28,
-    roughness: 0.42,
+  const normals = geometry.getAttribute("normal") as THREE.BufferAttribute;
+  const colors = new Float32Array(positions.count * 3);
+  for (let index = 0; index < positions.count; index += 3) {
+    const normalY = (normals.getY(index) + normals.getY(index + 1) + normals.getY(index + 2)) / 3;
+    const normalZ = (normals.getZ(index) + normals.getZ(index + 1) + normals.getZ(index + 2)) / 3;
+    const shade = 0.18 + Math.max(normalY, 0) * 0.13 + Math.max(normalZ, 0) * 0.05;
+    for (let vertex = index; vertex < index + 3; vertex += 1) {
+      colors[vertex * 3] = shade * 0.98;
+      colors[vertex * 3 + 1] = shade;
+      colors[vertex * 3 + 2] = shade * 0.97;
+    }
+  }
+  geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+  const material = new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    vertexColors: true,
   });
   const rock = new THREE.Mesh(geometry, material);
-  rock.rotation.set(0.25, 0.4, -0.12);
+  rock.rotation.set(0.18, 0.38, -0.08);
   group.add(rock);
-  const edge = new THREE.LineSegments(
-    new THREE.EdgesGeometry(geometry, 28),
-    new THREE.LineBasicMaterial({ color: 0xb7a9ff, transparent: true, opacity: 0.55 }),
-  );
-  edge.rotation.copy(rock.rotation);
-  group.add(edge);
   return tagMove(group, "rock");
 }
 
