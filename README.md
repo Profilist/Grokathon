@@ -1,25 +1,145 @@
-# Grok Play Feed Demo
+<div align="center">
 
-A Chrome extension prototype that attaches playable 3D games to marked posts in the X feed. It supports the original two-player Rock Paper Scissors arena and a four-human Taiwanese 16-tile Mahjong table powered by Supabase Realtime and an authoritative Edge Function.
+# ◉ GROK PLAY
 
-Use a natural-language trigger or game marker to render an embedded card:
+### The X feed, now playable with X Money.
 
-| Tweet text | Card |
+Multiplayer games (with stakes!) that appear directly on your X feed.
+
+[![Chrome Extension](https://img.shields.io/badge/Chrome-Extension-4285F4?logo=googlechrome&logoColor=white)](#-judge-quick-start)
+[![Three.js](https://img.shields.io/badge/Three.js-3D_Arena-black?logo=threedotjs)](#-inside-the-arena)
+[![Supabase](https://img.shields.io/badge/Supabase-Realtime-3FCF8E?logo=supabase&logoColor=white)](#-how-it-works)
+[![xAI](https://img.shields.io/badge/xAI-Grok_4.5-white)](#-prompt-to-3d)
+[![TypeScript](https://img.shields.io/badge/TypeScript-Strict-3178C6?logo=typescript&logoColor=white)](#-built-with)
+
+**Post an invitation. Open the feed. Play together.**
+
+<img width="600" height="543" alt="image" src="https://github.com/user-attachments/assets/3c00f5cb-3d4c-42f5-8c86-8de5b6f0ebaf" />
+
+
+</div>
+
+---
+
+## ⚡ Quick start
+
+No repository checkout, API keys, or development tools are required.
+
+1. Download and unzip `grok-play-extension-0.1.0-chrome.zip` on [Google Drive.](https://drive.google.com/file/d/1YP3_hvydw14hRK9TZsb8k6MDOY9By4o1/view?usp=drive_link)
+2. Open `chrome://extensions` in Chrome.
+3. Enable **Developer mode**.
+4. Click **Load unpacked** and select the unzipped folder.
+5. Sign into X and open a Grok Play post.
+
+Each Chrome installation receives its own persistent anonymous player identity. Use two laptops or Chrome profiles for RPS, or play Grokjong solo with **Fill with bots**.
+
+## 🎮 What is Grok Play?
+
+Grok Play is a Chrome extension that turns ordinary X posts into shared, realtime game lobbies. It currently includes:
+
+- **Rock Paper Scissors** — a cinematic 3D arena with prompt-generated pieces.
+- **Grokjong** — a playable four-seat Taiwanese 16-tile Mahjong table.
+- **Live spectators** — full RPS lobbies automatically become read-only arenas.
+- **Feed-native multiplayer** — no redirect, separate website, or X API integration.
+
+The extension watches visible posts, detects an invitation, and mounts the game inside that exact post. Everyone viewing the same status joins the same lobby because its ID is deterministically derived from the immutable X status ID.
+
+### Posts become games
+
+| Post text | Result |
 | --- | --- |
-| `Anyone want to play Grokjong?` | Shared lobby with Mahjong preselected |
-| `Who is up for Grok Paper Scissors?` | Shared lobby with RPS preselected |
-| `Let's play Grok Play` | Shared lobby game picker with RPS initially selected |
-| `[grokplay:<id>]` | Shared lobby: choose a game and wager, then play |
+| `Anyone want to play Grokjong?` | Opens a shared Grokjong lobby |
+| `Who is up for Grok Paper Scissors?` | Opens a shared RPS lobby |
+| `Let's play Grok Play` | Opens the game picker |
 
-Phrase matching is case-insensitive. Phrase-triggered posts derive their lobby ID from the immutable X status ID (for example, `x-1952837461928374`), so every viewer of that post joins the same lobby. Explicit markers remain available when you want to choose the lobby ID yourself.
+Only key words are needed not exact phrases.
 
-## 1. Configure Supabase
+## ✨ Inside the arena
 
-Create a Supabase project, then:
+### Rock Paper Scissors
 
-1. Open **Authentication → Providers → Anonymous Sign-Ins** and enable anonymous sign-ins.
-2. Apply the migrations in [`supabase/migrations`](supabase/migrations) in filename order.
-3. Store the xAI key as a server-side Supabase secret, then deploy both Edge Functions:
+1. The post author chooses the game and wager display.
+2. A second player joins from the same post.
+3. Each player chooses rock, paper, or scissors.
+4. Players can describe a custom 3D piece before locking in.
+5. Moves and assets remain hidden until both players commit.
+6. The arena reveals the models, collision animation, and winner together.
+
+### Grokjong
+
+1. The post author opens the table and occupies the first seat.
+2. Three people join—or the host fills empty seats with bots.
+3. Any seated player deals once all four seats are filled.
+4. Legal discard, chow, pong, kong, win, and pass actions appear contextually.
+5. The authoritative server advances timed-out turns and claim windows.
+6. At the end of the hand, every hand is revealed and guest seats reopen.
+
+Wagers are currently game metadata for the demo; no payment, escrow, X Money, or real funds move through the extension.
+
+## 🧬 Prompt to 3D
+
+Custom RPS assets are generated without executing model-written code or paying a separate text-to-3D provider.
+
+```text
+Player prompt
+     │
+     ▼
+Grok 4.5 structured output
+     │  validated JSON recipe
+     ▼
+Trusted geometry compiler
+     │  primitives · silhouettes · CSG · modifiers
+     ▼
+Three.js mesh ──────► live arena
+     ▲
+     │ optional surface texture
+Grok Imagine
+```
+
+Grok works inside a constrained modeling vocabulary: primitives, extrusions, silhouettes, lathed profiles, CSG operations, deformations, materials, decals, and attachments. Every response is validated before rendering. This preserves creative freedom while keeping polygon counts, dimensions, and runtime behavior predictable.
+
+For texture-driven assets, Grok Imagine produces a surface map that is stored privately and delivered through a short-lived signed URL. Priority processing, prompt caching, background generation, and structured latency telemetry keep the pipeline responsive and debuggable.
+
+## 🛰 How it works
+
+```mermaid
+flowchart LR
+    A[X post] -->|phrase or marker| B[MV3 content script]
+    B --> C[Sandboxed game iframe]
+    C <-->|Auth + Realtime| D[(Supabase)]
+    D --> E[Postgres + RLS]
+    D --> F[Edge Functions]
+    F --> G[Grok 4.5]
+    F --> H[Grok Imagine]
+    C --> I[Three.js + Rapier]
+```
+
+- The content script reads only visible post markup needed to identify the trigger, status ID, author, theme, and signed-in profile handle.
+- Supabase anonymous auth gives every installation a persistent identity.
+- Realtime synchronizes lobby and round changes without polling.
+- Postgres and Row Level Security enforce lobby ownership and player access.
+- Edge Functions keep game authority, xAI calls, and privileged credentials off the client.
+- The extension never reads X cookies and does not use the X API.
+
+## 🧰 Built with
+
+| Layer | Technology |
+| --- | --- |
+| Extension | WXT, Chrome Manifest V3, TypeScript |
+| UI | React |
+| 3D | Three.js, React Three Fiber, Rapier |
+| Multiplayer | Supabase Auth, Postgres, Realtime |
+| Server | Supabase Edge Functions |
+| Generation | Grok 4.5 structured outputs, Grok Imagine |
+| Validation | Vitest, TypeScript strict mode |
+
+## 🛠 Local development
+
+### 1. Configure Supabase
+
+Create a Supabase project, enable **Authentication → Providers → Anonymous Sign-Ins**, then apply the migrations in [`supabase/migrations`](supabase/migrations) in filename order.
+
+Store the xAI key as a server-side secret and deploy both Edge Functions:
 
 ```bash
 supabase secrets set XAI_API_KEY=your_xai_key
@@ -27,49 +147,45 @@ supabase functions deploy rps-assets
 supabase functions deploy mahjong-game
 ```
 
-Keep JWT verification enabled. The function receives the service-role key from Supabase's server-side environment; never add it to `.env` or the extension.
+Keep JWT verification enabled. Never put the service-role key or xAI key in the extension.
 
-4. Copy the environment template:
+Copy the environment template and add the public browser configuration from **Project Settings → API**:
 
 ```bash
 cp .env.example .env
 ```
-
-5. Fill in the project URL and publishable key from **Project Settings → API**:
 
 ```dotenv
 WXT_SUPABASE_URL=https://your-project.supabase.co
 WXT_SUPABASE_PUBLISHABLE_KEY=sb_publishable_your_key
 ```
 
-The publishable key is designed for browser clients. Database access is protected by the migration's Row Level Security policies; never put a Supabase service-role key in the extension.
-
-## 2. Build and install
+### 2. Build the extension
 
 ```bash
 pnpm install
 pnpm build
 ```
 
-Open `chrome://extensions`, enable **Developer mode**, choose **Load unpacked**, and select:
+Load `.output/chrome-mv3` from `chrome://extensions`. After another build, click **Reload** on the extension card.
 
-```text
-.output/chrome-mv3
+To produce the distributable ZIP:
+
+```bash
+pnpm zip
 ```
 
-After rebuilding, click the extension's **Reload** button on `chrome://extensions`. Both players must build with the same Supabase project configuration.
+For development, `pnpm dev` opens a dedicated Chrome profile with the extension installed automatically.
 
-For development, `pnpm dev` opens a separate Chrome profile with the extension installed automatically.
+### 3. Create a lobby
 
-## 3. Create a game
-
-The host can publish a natural invitation:
+Post a natural invitation:
 
 ```text
 Anyone want to play Grokjong?
 ```
 
-The extension detects the phrase and uses the post's status ID as its shared lobby ID. Alternatively, publish an X post with one unique lobby marker:
+Or use an explicit marker when you want to control the lobby ID:
 
 ```text
 Who wants to play?
@@ -77,60 +193,9 @@ Who wants to play?
 [grokplay:friday-8f3k]
 ```
 
-Use a new lobby ID each time. IDs may contain letters, numbers, underscores, and hyphens.
+The post author must view their own invitation once to initialize the lobby. Use a fresh post or marker for each new demo.
 
-1. While signed into the posting X account, the host views their own marked post.
-2. The host chooses **RPS** or **Mahjong**, enters a concept wager amount, and creates the game.
-3. Supabase binds that lobby ID to the selected game and wager. Everyone viewing the post transitions to the chosen game through Realtime.
-4. Other players join and play using the game-specific controls.
-
-The extension uses Supabase anonymous authentication to give each installation a persistent player identity. Wagers are display metadata only: there is no email, X OAuth, X Money integration, escrow, or real payment yet.
-
-### Rock Paper Scissors
-
-After the host selects RPS, the teammate clicks **Join game**. Both embedded cards update through Supabase Realtime. Each player selects Rock, Paper, or Scissors, then can describe a custom object and click **Generate** before locking in. Grok 4.5 creates a validated geometry recipe, Imagine optionally creates its surface texture, and the Three.js arena crossfades to the generated model.
-
-The player locks in the move and generated asset together. Both choices and asset IDs stay hidden until the round resolves, then player and read-only spectator arenas reveal the custom models and winner at the same time. The xAI key never enters the extension bundle: `rps-assets` authenticates the anonymous Supabase user, verifies their seat, runs generation in a background task, and stores textures in the private `rps-generated-assets` bucket. The browser receives only validated recipe JSON and a short-lived signed texture URL.
-
-## 4. Four-player 3D Mahjong
-
-Choose Mahjong from the setup screen attached to the same generic lobby marker:
-
-```text
-Four seats open. Who wants to play Mahjong?
-
-[grokplay:friday-8f3k]
-```
-
-1. The post author views their own post to create seat zero.
-2. Either three other extension installations or Chrome profiles click **Join table**, or the host clicks **Fill with bots** for a solo test.
-3. Once four seats are occupied, any seated player can click **Deal tiles**.
-4. The active player clicks a tile in their hand to discard. Chow, pong, kong, win, and pass controls appear only when legal.
-5. Turns expire after 30 seconds and use the baseline legal-play bot. Claim windows expire after 10 seconds and unanswered claims pass.
-6. At the end, all four hands are revealed, seats one through three reopen, and any seated player can start the next hand once the table refills.
-
-Opponent hands, the wall order, pending claims, and the deterministic seed are stored only in the private server state. Realtime publishes lobby summaries and sanitized events.
-
-Legacy explicit markers such as `[grokplay:mahjong:table_12]` still work and preselect Mahjong when the lobby has not been configured yet.
-
-## 5. Spectate a game
-
-Once an RPS lobby is full, anyone who is not one of its two players automatically sees the regular 3D gameplay arena in read-only mode. Spectators have no join, move, replay, or betting controls, and there is no separate chat interface. Moves remain hidden until both players lock in.
-
-## Troubleshooting
-
-- **Supabase setup required:** create `.env`, rebuild, and reload the extension.
-- **Enable anonymous sign-ins:** enable the provider in Supabase Auth settings.
-- **Run the included migration:** execute the SQL migration in the Supabase SQL Editor.
-- **Waiting for the host:** the author must view their own post first while signed into the account that published it.
-- **Lobby already full:** use a fresh game ID in a new marker post.
-- **Testing alone:** the host can click **Fill with bots**, then **Deal tiles**, without creating extra Chrome profiles.
-- **Run the RPS round migration:** apply every migration in filename order if the lobby works but move submission fails.
-- **Custom asset generation fails:** deploy `rps-assets` and set the server-side `XAI_API_KEY` secret. Do not put that key in `.env`.
-- **Deploy the Mahjong function:** run `supabase functions deploy mahjong-game` if the Mahjong card reports that its server is unavailable.
-- **Table looks compact:** join a seat or click **Open table**; the Mahjong iframe expands inside the post without opening a new page.
-
-## Checks
+## ✅ Checks
 
 ```bash
 pnpm test
@@ -138,6 +203,14 @@ pnpm typecheck
 pnpm build
 ```
 
-The extension reads only visible post markup needed to find the marker, theme, post author, and signed-in profile handle. It does not read X cookies or use the X API.
+## 🩺 Troubleshooting
 
-Mahjong code and tile-art licensing are documented in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+| Problem | Fix |
+| --- | --- |
+| `Supabase setup required` | Add the public project URL and publishable key, then rebuild |
+| `Waiting for the host` | The post author must view their own post while signed into X |
+| `Lobby already full` | Use a fresh post or explicit lobby ID |
+| RPS moves do not submit | Apply every migration in filename order |
+| Custom generation fails | Deploy `rps-assets` and set the server-side `XAI_API_KEY` |
+| Mahjong server unavailable | Deploy the `mahjong-game` Edge Function |
+| Testing Grokjong alone | Choose **Fill with bots**, then **Deal tiles** |
