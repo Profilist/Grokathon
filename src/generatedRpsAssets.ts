@@ -70,3 +70,23 @@ export function parseRevealedRpsAssets(value: unknown): {
     guest: value.guest === null ? null : parseRenderableRpsAsset(value.guest),
   };
 }
+
+export function parseLatestRpsAssets(
+  value: unknown,
+): Partial<Record<RpsMove, RenderableRpsAsset>> {
+  if (!isRecord(value) || !isRecord(value.assets)) {
+    throw new Error("Latest asset response is invalid");
+  }
+
+  const assets: Partial<Record<RpsMove, RenderableRpsAsset>> = {};
+  for (const move of ["rock", "paper", "scissors"] as const) {
+    const candidate = value.assets[move];
+    if (candidate === null || candidate === undefined) continue;
+    const asset = parseRenderableRpsAsset(candidate);
+    if (asset.move !== move) {
+      throw new Error("Latest asset does not match its RPS move");
+    }
+    assets[move] = asset;
+  }
+  return assets;
+}

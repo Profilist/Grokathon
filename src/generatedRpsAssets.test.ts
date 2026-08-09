@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { freeformMeteor } from "./freeformAssetFixtures";
 import {
   parseGeneratedAssetJob,
+  parseLatestRpsAssets,
   parseRenderableRpsAsset,
   parseRevealedRpsAssets,
 } from "./generatedRpsAssets";
@@ -43,5 +44,41 @@ describe("generated RPS assets", () => {
       host: null,
       guest: null,
     });
+  });
+
+  it("restores the latest saved asset for each move", () => {
+    expect(
+      parseLatestRpsAssets({
+        assets: {
+          rock: {
+            id: assetId,
+            move: "rock",
+            name: "Meteor",
+            program: freeformMeteor,
+            textureUrl: null,
+          },
+          paper: null,
+          scissors: null,
+        },
+      }),
+    ).toMatchObject({ rock: { id: assetId, name: "Meteor" } });
+  });
+
+  it("rejects a restored asset stored under the wrong move", () => {
+    expect(() =>
+      parseLatestRpsAssets({
+        assets: {
+          rock: null,
+          paper: {
+            id: assetId,
+            move: "rock",
+            name: "Meteor",
+            program: freeformMeteor,
+            textureUrl: null,
+          },
+          scissors: null,
+        },
+      }),
+    ).toThrow(/does not match/);
   });
 });

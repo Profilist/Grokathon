@@ -3,6 +3,7 @@ import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
 import { buildFreeformAsset, disposeFreeformAsset } from "../../src/freeformAssetProgram";
 import {
   parseGeneratedAssetJob,
+  parseLatestRpsAssets,
   parseRenderableRpsAsset,
   parseRevealedRpsAssets,
   type GeneratedAssetStatus,
@@ -150,7 +151,6 @@ export function useGeneratedRpsAssets({
   useEffect(() => {
     if (wasComplete.current && !roundComplete) {
       requestVersion.current += 1;
-      setSelectionAssets({});
       setHostResultAsset(null);
       setGuestResultAsset(null);
       setGenerationState("idle");
@@ -159,6 +159,33 @@ export function useGeneratedRpsAssets({
     }
     wasComplete.current = roundComplete;
   }, [roundComplete]);
+
+  useEffect(() => {
+    if (!enabled || !userId) return;
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    const version = requestVersion.current;
+    let disposed = false;
+
+    void (async () => {
+      const { data, error: latestError } = await supabase.functions.invoke("rps-assets", {
+        body: { operation: "latest", gameId },
+      });
+      if (latestError) throw await readableFunctionError(latestError);
+      const restored = parseLatestRpsAssets(data);
+      if (disposed || version !== requestVersion.current) return;
+      setSelectionAssets((current) => ({ ...restored, ...current }));
+      if (Object.keys(restored).length > 0) setGenerationState("ready");
+    })().catch((cause) => {
+      if (!disposed && version === requestVersion.current) {
+        setError(functionError(cause));
+      }
+    });
+
+    return () => {
+      disposed = true;
+    };
+  }, [enabled, gameId, userId]);
 
   useEffect(() => {
     if (!enabled || !roundComplete || !userId) return;

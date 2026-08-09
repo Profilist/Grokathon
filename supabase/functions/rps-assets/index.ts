@@ -21,6 +21,7 @@ const TEXTURE_MODEL = "grok-imagine-image";
 const ASSET_BUCKET = "rps-generated-assets";
 const SIGNED_URL_SECONDS = 15 * 60;
 const MAX_PROGRAM_ATTEMPTS = 1;
+const RPS_MOVES = ["rock", "paper", "scissors"] as const satisfies readonly FreeformMove[];
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -56,7 +57,7 @@ Build coherent shapes with a flat node graph inside each material part:
 All schema fields are required. For fields ignored by an operation use neutral values: inputs [], position/rotation [0,0,0], scale/size [1,1,1], radius 0.5, radiusTop 0.2, radiusBottom 0.5, tube 0.1, height 1, roundness 0.05, smoothness 0.12, amount 0.1, frequency 5, and points/radii/polygon/profile []. Do not write code, raw vertices, base64, text labels, trademarks, or external file references.`;
 
 type RequestBody = {
-  operation?: "generate" | "asset" | "revealed";
+  operation?: "generate" | "asset" | "latest" | "revealed";
   gameId?: unknown;
   move?: unknown;
   prompt?: unknown;
@@ -119,6 +120,13 @@ Deno.serve(async (request: Request) => {
       const asset = await loadAsset(admin, assetId);
       await requireAssetAccess(admin, asset, user.id);
       return json({ asset: await renderableAsset(admin, asset) });
+    }
+
+    if (operation === "latest") {
+      const gameId = parseGameId(body.gameId);
+      return json({
+        assets: await loadLatestOwnedAssets(admin, gameId, user.id),
+      });
     }
 
     const gameId = parseGameId(body.gameId);
@@ -463,6 +471,31 @@ async function loadAsset(
   return data as GeneratedAssetRow;
 }
 
+async function loadLatestOwnedAssets(
+  admin: SupabaseClient,
+  gameId: string,
+  userId: string,
+) {
+  const rows = await Promise.all(
+    RPS_MOVES.map(async (move) => {
+      const { data, error } = await admin
+        .from("generated_assets")
+        .select("id,owner_user_id,game_slug,move,status,program,texture_path")
+        .eq("owner_user_id", userId)
+        .eq("game_slug", gameId)
+        .eq("move", move)
+        .eq("status", "ready")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return data ? [move, await renderableAsset(admin, data as GeneratedAssetRow)] : [move, null];
+    }),
+  );
+
+  return Object.fromEntries(rows);
+}
+
 async function renderableAsset(
   admin: SupabaseClient,
   asset: GeneratedAssetRow,
@@ -485,8 +518,15 @@ async function renderableAsset(
   };
 }
 
-function parseOperation(value: unknown): "generate" | "asset" | "revealed" {
-  if (value === "generate" || value === "asset" || value === "revealed") {
+function parseOperation(
+  value: unknown,
+): "generate" | "asset" | "latest" | "revealed" {
+  if (
+    value === "generate" ||
+    value === "asset" ||
+    value === "latest" ||
+    value === "revealed"
+  ) {
     return value;
   }
   throw new HttpError(400, "Unsupported asset operation.");
