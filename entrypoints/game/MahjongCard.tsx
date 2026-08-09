@@ -34,21 +34,38 @@ export function MahjongCard({ gameId, hostHandle, theme, viewerHandle, wagerCent
       (state.view.round || (state.view.seat !== null && state.view.seats.length > 1)),
   );
 
+  const cardRef = useRef<HTMLElement | null>(null);
+
+  // The card sizes itself from its content, so report the measured height rather
+  // than a constant the layout can outgrow and clip.
   useEffect(() => {
-    window.parent.postMessage(
-      {
-        type: "grokplay:resize",
-        kind: "mahjong",
-        gameId,
-        height: shouldExpand ? 620 : 360,
-      },
-      "https://x.com",
-    );
+    const card = cardRef.current;
+    if (!card) return;
+
+    let lastHeight = 0;
+    const postHeight = () => {
+      const height = Math.ceil(card.getBoundingClientRect().height);
+      if (height <= 0 || height === lastHeight) return;
+      lastHeight = height;
+      window.parent.postMessage(
+        { type: "grokplay:resize", kind: "mahjong", gameId, height },
+        "https://x.com",
+      );
+    };
+
+    postHeight();
+    const observer = new ResizeObserver(postHeight);
+    observer.observe(card);
+    return () => observer.disconnect();
   }, [gameId, shouldExpand]);
 
   return (
     <main className="page mahjong-page" data-theme={theme}>
-      <section className="game-card mahjong-card" aria-label="Taiwanese Mahjong game">
+      <section
+        className="game-card mahjong-card"
+        aria-label="Taiwanese Mahjong game"
+        ref={cardRef}
+      >
         <MahjongHeader wagerCents={wagerCents} />
 
         {state.status === "loading" ? <CenteredState title="Shuffling the table…" /> : null}
