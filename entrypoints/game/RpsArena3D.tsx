@@ -127,8 +127,6 @@ function createPaper() {
     metalness: 0.08,
     roughness: 0.24,
     side: THREE.DoubleSide,
-    transparent: true,
-    opacity: 0.94,
   });
   const paper = new THREE.Mesh(geometry, material);
   paper.rotation.set(-0.12, -0.22, 0.08);
@@ -230,13 +228,14 @@ function materialsOf(object: THREE.Object3D) {
 
 function setGlow(group: THREE.Object3D, intensity: number, opacity = 1) {
   materialsOf(group).forEach((material) => {
-    const baseOpacity =
-      typeof material.userData.rpsBaseOpacity === "number"
-        ? material.userData.rpsBaseOpacity
-        : material.opacity;
-    material.userData.rpsBaseOpacity = baseOpacity;
-    material.transparent = opacity < 1 || baseOpacity < 1 || material.transparent;
-    material.opacity = baseOpacity * opacity;
+    if (typeof material.userData.rpsBaseOpacity !== "number") {
+      material.userData.rpsBaseOpacity = material.opacity;
+    }
+    const baseOpacity = material.userData.rpsBaseOpacity as number;
+    const nextOpacity = baseOpacity * opacity;
+    material.opacity = nextOpacity;
+    material.transparent = nextOpacity < 0.999;
+    material.depthWrite = nextOpacity >= 0.999;
     if (material instanceof THREE.MeshStandardMaterial) material.emissiveIntensity = intensity;
   });
 }
@@ -452,7 +451,7 @@ export function RpsArena3D({
         object.position.x += (baseX - object.position.x) * 0.18;
         object.position.y = reducedMotion ? -0.02 : -0.02 + Math.sin(seconds * 1.8 + index) * 0.07;
         if (!reducedMotion) object.rotation.y += 0.006 + index * 0.0015;
-        setGlow(object, selected ? 1.55 : state.phase === "waiting" ? 1.25 : state.phase === "spectating" ? 0.42 : 0.85, state.phase === "spectating" ? 0.48 : 1);
+        setGlow(object, selected ? 1.55 : state.phase === "waiting" ? 1.25 : 0.85, 1);
       });
 
       const results: Array<[ResultSlot, THREE.Group | null]> = [
