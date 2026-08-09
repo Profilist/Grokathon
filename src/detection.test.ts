@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   extractProfileHandle,
   extractStatusHandle,
+  extractStatusId,
   getGameMountKey,
   inferThemeFromColor,
   parseCardMarker,
+  parseCardTrigger,
   parseGameResizeMessage,
 } from "./detection";
 
@@ -79,6 +81,44 @@ describe("parseCardMarker", () => {
   });
 });
 
+describe("parseCardTrigger", () => {
+  it.each([
+    ["Anyone want to play Grokjong?", "mahjong"],
+    ["Anyone want to play GROKJONG?", "mahjong"],
+    ["Try Grok Paper Scissors with me", "rps"],
+    ["Start a gRoK pApEr ScIsSoRs lobby", "rps"],
+    ["Open Grok Play", "rps"],
+    ["open GROK   PLAY", "rps"],
+  ] as const)("creates a deterministic lobby for %s", (text, gameType) => {
+    expect(parseCardTrigger(text, "1952837461928374")).toEqual({
+      gameId: "x-1952837461928374",
+      gameType,
+      wagerCents: null,
+    });
+  });
+
+  it("requires a valid X status ID for phrase-triggered posts", () => {
+    expect(parseCardTrigger("Play Grokjong", null)).toBeNull();
+    expect(parseCardTrigger("Play Grokjong", "not-an-id")).toBeNull();
+  });
+
+  it("uses word boundaries and does not detect GPS", () => {
+    expect(parseCardTrigger("Grokjongish", "123")).toBeNull();
+    expect(parseCardTrigger("Grok Playground", "123")).toBeNull();
+    expect(parseCardTrigger("Anyone want to play GPS?", "123")).toBeNull();
+  });
+
+  it("keeps an explicit marker authoritative", () => {
+    expect(
+      parseCardTrigger("Grokjong [grokplay:rps-finals]", "1952837461928374"),
+    ).toEqual({
+      gameId: "rps-finals",
+      gameType: "rps",
+      wagerCents: null,
+    });
+  });
+});
+
 describe("parseGameResizeMessage", () => {
   it("accepts only the two supported game sizes", () => {
     expect(
@@ -130,6 +170,22 @@ describe("extractStatusHandle", () => {
 
   it("ignores generic status paths", () => {
     expect(extractStatusHandle(["/i/status/1234567890"])).toBeNull();
+  });
+});
+
+describe("extractStatusId", () => {
+  it("extracts the immutable ID from relative and absolute status links", () => {
+    expect(extractStatusId(["/larris/status/1952837461928374"])).toBe(
+      "1952837461928374",
+    );
+    expect(
+      extractStatusId(["https://x.com/larris/status/1952837461928374/photo/1"]),
+    ).toBe("1952837461928374");
+  });
+
+  it("accepts X's generic status permalink and ignores unrelated links", () => {
+    expect(extractStatusId(["/home", "/i/status/1234567890"])).toBe("1234567890");
+    expect(extractStatusId(["/home", "not a valid url"])).toBeNull();
   });
 });
 

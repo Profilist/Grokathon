@@ -5,7 +5,12 @@ import { gameTypeFromSlug, isGameType, type GameType } from "./games/catalog";
 // [grokplay:poker-night@25]      legacy metadata remains parse-compatible
 const CARD_MARKER_PATTERN =
   /\[grokplay:(?:(rps|mahjong|poker):)?([a-z0-9][a-z0-9_-]{0,63})(?:@\$?(\d{1,6}(?:\.\d{1,2})?))?\]/i;
-const STATUS_PATH_PATTERN = /^\/([^/]+)\/status\/\d+(?:\/|$)/;
+const STATUS_PATH_PATTERN = /^\/([^/]+)\/status\/(\d+)(?:\/|$)/;
+const PHRASE_TRIGGERS: ReadonlyArray<{ pattern: RegExp; gameType: GameType }> = [
+  { pattern: /\bgrokjong\b/i, gameType: "mahjong" },
+  { pattern: /\bgrok\s+paper\s+scissors\b/i, gameType: "rps" },
+  { pattern: /\bgrok\s+play\b/i, gameType: "rps" },
+];
 const PROFILE_PATH_PATTERN = /^\/([a-z0-9_]{1,32})\/?$/i;
 const RESERVED_X_PATHS = new Set([
   "compose",
@@ -63,6 +68,27 @@ export function parseCardMarker(text: string): CardMarker | null {
   };
 }
 
+/**
+ * Resolve either an explicit marker or a human-readable Grok Play phrase.
+ * Phrase-triggered posts use the immutable X status ID so every viewer opens
+ * the same lobby. Explicit markers remain authoritative for backwards
+ * compatibility and intentionally named lobbies.
+ */
+export function parseCardTrigger(text: string, statusId: string | null): CardMarker | null {
+  const marker = parseCardMarker(text);
+  if (marker) return marker;
+  if (!statusId || !/^\d+$/.test(statusId)) return null;
+
+  const phrase = PHRASE_TRIGGERS.find(({ pattern }) => pattern.test(text));
+  if (!phrase) return null;
+
+  return {
+    gameId: `x-${statusId}`,
+    gameType: phrase.gameType,
+    wagerCents: null,
+  };
+}
+
 export function parseGameResizeMessage(value: unknown): GameResizeMessage | null {
   if (!value || typeof value !== "object") return null;
 
@@ -91,6 +117,21 @@ export function extractStatusHandle(hrefs: string[]): string | null {
     const handle = pathname.match(STATUS_PATH_PATTERN)?.[1];
     if (handle && handle.toLowerCase() !== "i") {
       return handle;
+    }
+  }
+
+  return null;
+}
+
+export function extractStatusId(hrefs: string[]): string | null {
+  for (const href of hrefs) {
+    try {
+      const statusId = new URL(href, "https://x.com").pathname.match(
+        STATUS_PATH_PATTERN,
+      )?.[2];
+      if (statusId) return statusId;
+    } catch {
+      // Ignore malformed hrefs and continue looking for the post permalink.
     }
   }
 

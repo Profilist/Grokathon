@@ -2,11 +2,16 @@
 
 A Chrome extension prototype that attaches playable 3D games to marked posts in the X feed. It supports the original two-player Rock Paper Scissors arena and a four-human Taiwanese 16-tile Mahjong table powered by Supabase Realtime and an authoritative Edge Function.
 
-Use a game marker to render an embedded card:
+Use a natural-language trigger or game marker to render an embedded card:
 
-| Marker | Card |
+| Tweet text | Card |
 | --- | --- |
+| `Anyone want to play Grokjong?` | Shared lobby with Mahjong preselected |
+| `Who is up for Grok Paper Scissors?` | Shared lobby with RPS preselected |
+| `Let's play Grok Play` | Shared lobby game picker with RPS initially selected |
 | `[grokplay:<id>]` | Shared lobby: choose a game and wager, then play |
+
+Phrase matching is case-insensitive. Phrase-triggered posts derive their lobby ID from the immutable X status ID (for example, `x-1952837461928374`), so every viewer of that post joins the same lobby. Explicit markers remain available when you want to choose the lobby ID yourself.
 
 ## 1. Configure Supabase
 
@@ -58,7 +63,13 @@ For development, `pnpm dev` opens a separate Chrome profile with the extension i
 
 ## 3. Create a game
 
-The host publishes an X post with one unique lobby marker:
+The host can publish a natural invitation:
+
+```text
+Anyone want to play Grokjong?
+```
+
+The extension detects the phrase and uses the post's status ID as its shared lobby ID. Alternatively, publish an X post with one unique lobby marker:
 
 ```text
 Who wants to play?

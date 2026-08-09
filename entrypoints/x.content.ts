@@ -2,9 +2,10 @@ import { browser } from "wxt/browser";
 import {
   extractProfileHandle,
   extractStatusHandle,
+  extractStatusId,
   getGameMountKey,
   inferThemeFromColor,
-  parseCardMarker,
+  parseCardTrigger,
   parseGameResizeMessage,
   type XTheme,
 } from "../src/detection";
@@ -27,12 +28,20 @@ function findPostTheme(post: HTMLElement): XTheme {
   return matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
-function findAuthorHandle(post: HTMLElement): string | null {
-  const hrefs = Array.from(post.querySelectorAll<HTMLAnchorElement>("a[href]"))
+function findStatusHrefs(post: HTMLElement): string[] {
+  const anchors = Array.from(post.querySelectorAll<HTMLAnchorElement>("a[href]"));
+  const orderedAnchors = [
+    ...anchors.filter((anchor) => anchor.querySelector("time")),
+    ...anchors.filter((anchor) => !anchor.querySelector("time")),
+  ];
+
+  return orderedAnchors
     .map((anchor) => anchor.getAttribute("href"))
     .filter((href): href is string => href !== null);
+}
 
-  return extractStatusHandle(hrefs);
+function findPostText(post: HTMLElement): string {
+  return post.querySelector<HTMLElement>('[data-testid="tweetText"]')?.innerText ?? post.innerText;
 }
 
 function findViewerHandle(): string | null {
@@ -110,7 +119,8 @@ function createGameHost(context: GameContext): HTMLElement {
 }
 
 function syncPost(post: HTMLElement): void {
-  const marker = parseCardMarker(post.innerText);
+  const statusHrefs = findStatusHrefs(post);
+  const marker = parseCardTrigger(findPostText(post), extractStatusId(statusHrefs));
   const existingHost = post.querySelector<HTMLElement>(`[${HOST_ATTRIBUTE}]`);
 
   if (!marker) {
@@ -121,7 +131,7 @@ function syncPost(post: HTMLElement): void {
   const context: GameContext = {
     gameId: marker.gameId,
     gameType: marker.gameType,
-    hostHandle: findAuthorHandle(post),
+    hostHandle: extractStatusHandle(statusHrefs),
     viewerHandle: findViewerHandle(),
     theme: findPostTheme(post),
   };
