@@ -55,8 +55,8 @@ const tableRailOuterHalfSize = tableHalfSize + tableRailWidth;
 const sceneBackgroundColor = "#101514";
 const sceneToneMapping = THREE.ACESFilmicToneMapping;
 const sceneToneMappingExposure = 1.12;
-/** Closest orbit distance relative to the default camera position (2.5 = 250% zoom). */
-const MAX_BOARD_ZOOM = 2.5;
+/** Closest orbit distance relative to the default camera position (1.6 = 160% zoom). */
+const MAX_BOARD_ZOOM = 1.6;
 const rapierRigidBodyType = {
   dynamic: 0,
   kinematicPosition: 2,
@@ -92,30 +92,30 @@ function makeCameraPreset(
 }
 
 const cameraPresets = {
-  // Lower / flatter seat-side view so the player's upright hand faces the lens.
+  // Seat-side view that keeps the full table framed while still reading the near hand.
   desktop: makeCameraPreset({
-    position: [0, 1.95, 6.45],
-    fov: 42,
-    maxDistance: 9.6,
-    minPolarAngle: Math.PI / 3.5,
-    maxPolarAngle: Math.PI / 2.15,
-    target: [0, 0.16, 0.72],
+    position: [0, 2.7, 7.25],
+    fov: 40,
+    maxDistance: 10.2,
+    minPolarAngle: Math.PI / 4.1,
+    maxPolarAngle: Math.PI / 2.35,
+    target: [0, 0.08, 0.28],
   }),
   narrow: makeCameraPreset({
-    position: [0, 3.15, 8.15],
-    fov: 50,
-    maxDistance: 12.4,
-    minPolarAngle: Math.PI / 3.8,
-    maxPolarAngle: Math.PI / 2.35,
-    target: [0, 0.18, 0.85],
+    position: [0, 4.2, 9.2],
+    fov: 48,
+    maxDistance: 13.2,
+    minPolarAngle: Math.PI / 4.4,
+    maxPolarAngle: Math.PI / 2.5,
+    target: [0, 0.1, 0.35],
   }),
   mobilePortrait: makeCameraPreset({
-    position: [0, 4.35, 8.35],
-    fov: 56,
-    maxDistance: 13.8,
-    minPolarAngle: Math.PI / 4.4,
-    maxPolarAngle: Math.PI / 2.55,
-    target: [0, 0.2, 0.95],
+    position: [0, 5.8, 9.6],
+    fov: 52,
+    maxDistance: 14.8,
+    minPolarAngle: Math.PI / 5.2,
+    maxPolarAngle: Math.PI / 2.7,
+    target: [0, 0.12, 0.4],
   }),
 } satisfies Record<string, CameraPreset>;
 
@@ -257,6 +257,8 @@ type ThreeGameViewProps = {
   onTableFlipPreviewTransition?: (delayMs: number) => void;
   sceneTransitionOverlayActive?: boolean;
   transparentBackground?: boolean;
+  /** Disable shadow maps for lighter feed/embed rendering. */
+  shadowsEnabled?: boolean;
 };
 
 export function ThreeGameView({
@@ -286,6 +288,7 @@ export function ThreeGameView({
   onTableFlipPreviewTransition,
   sceneTransitionOverlayActive = false,
   transparentBackground = false,
+  shadowsEnabled = true,
 }: ThreeGameViewProps) {
   const [flickDebug, setFlickDebug] = useState(defaultFlickDebugSettings);
   const [lightingDebug, setLightingDebug] = useState(
@@ -689,12 +692,15 @@ export function ThreeGameView({
       <Canvas
         className="three-r3f-canvas"
         frameloop={canvasFrameloop}
-        shadows="percentage"
+        shadows={shadowsEnabled ? "percentage" : false}
         dpr={renderDpr}
         gl={{
           alpha: transparentBackground,
-          antialias: true,
+          antialias: shadowsEnabled,
           powerPreference: "high-performance",
+          // Keep feed cards from thrashing the GPU when the video backdrop is also compositing.
+          stencil: false,
+          depth: true,
         }}
         style={{
           position: "absolute",
@@ -733,7 +739,7 @@ export function ThreeGameView({
           groundColor="#120f0b"
         />
         <directionalLight
-          castShadow
+          castShadow={shadowsEnabled}
           intensity={lightingDebug.keyIntensity}
           color="#ffe7cc"
           position={[
@@ -741,7 +747,7 @@ export function ThreeGameView({
             lightingDebug.keyY,
             lightingDebug.keyZ,
           ]}
-          shadow-mapSize={[1024, 1024]}
+          shadow-mapSize={shadowsEnabled ? [1024, 1024] : [256, 256]}
           shadow-camera-left={-4.2}
           shadow-camera-right={4.2}
           shadow-camera-top={4.2}
@@ -868,8 +874,9 @@ export function ThreeGameView({
           enableRotate={pointerControlsEnabled}
           enableZoom={pointerControlsEnabled}
           enablePan={false}
-          enableDamping
-          zoomSpeed={0.85}
+          // Damping forces a perpetual render loop; keep it off in the feed card.
+          enableDamping={simulatorMode}
+          zoomSpeed={0.7}
           target={orbitTarget}
           minDistance={cameraPreset.minDistance}
           maxDistance={cameraPreset.maxDistance}

@@ -196,6 +196,8 @@ function MahjongTable({
               renderPaused={reducedMotion}
               allowInitialRenderWhilePaused
               transparentBackground
+              shadowsEnabled={false}
+              renderDpr={[1, 1.25]}
               viewSeat={view.seat ?? 0}
             />
           </ThreeErrorBoundary>

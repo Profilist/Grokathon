@@ -249,6 +249,7 @@
   border: 0.5px solid var(--border);
   border-radius: 16px;
   isolation: isolate;
+  contain: layout paint;
   background: #000;
 }
 
@@ -261,6 +262,8 @@
   height: 100%;
   object-fit: cover;
   pointer-events: none;
+  /* Avoid the video competing with WebGL for decode/composite bandwidth. */
+  transform: translateZ(0);
 }
 
 .mahjong-stage::before {
@@ -322,16 +325,17 @@
 .mahjong-seat-labels {
   position: absolute;
   z-index: 6;
-  inset: 0;
+  inset: 8px;
   color: #ffffff;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   pointer-events: none;
+  overflow: hidden;
 }
 
 .mahjong-seat-labels span {
   position: absolute;
-  max-width: 160px;
+  max-width: min(140px, 28%);
   overflow: hidden;
   padding: 0;
   border: 0;
@@ -345,10 +349,10 @@
   color: #1da1f2;
 }
 
-.mahjong-seat-labels .is-bottom { bottom: 10px; left: 50%; transform: translateX(-50%); }
-.mahjong-seat-labels .is-top { top: 10px; left: 50%; transform: translateX(-50%); }
-.mahjong-seat-labels .is-left { top: 50%; left: 10px; transform: translateY(-50%); }
-.mahjong-seat-labels .is-right { top: 50%; right: 10px; transform: translateY(-50%); }
+.mahjong-seat-labels .is-bottom { bottom: 6px; left: 50%; transform: translateX(-50%); }
+.mahjong-seat-labels .is-top { top: 6px; left: 50%; transform: translateX(-50%); }
+.mahjong-seat-labels .is-left { top: 50%; left: 6px; transform: translateY(-50%); }
+.mahjong-seat-labels .is-right { top: 50%; right: 6px; transform: translateY(-50%); }
 
 .mahjong-turn-pill {
   position: absolute;
@@ -783,7 +787,7 @@ h1 {
   width: 43.76%;
   height: 36.12%;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.07);
 }
 
 .arena-scoreboard {
