@@ -1,11 +1,10 @@
 import { gameTypeFromSlug, isGameType, type GameType } from "./games/catalog";
 
 // [grokplay:friday-table]        shared lobby; host chooses game and wager
-// [grokwatch:mahjong-friday]     spectate card
 // [grokplay:mahjong:table_12]    legacy form; preselects Mahjong in setup
 // [grokplay:poker-night@25]      legacy metadata remains parse-compatible
 const CARD_MARKER_PATTERN =
-  /\[grok(play|watch):(?:(rps|mahjong|poker):)?([a-z0-9][a-z0-9_-]{0,63})(?:@\$?(\d{1,6}(?:\.\d{1,2})?))?\]/i;
+  /\[grokplay:(?:(rps|mahjong|poker):)?([a-z0-9][a-z0-9_-]{0,63})(?:@\$?(\d{1,6}(?:\.\d{1,2})?))?\]/i;
 const STATUS_PATH_PATTERN = /^\/([^/]+)\/status\/\d+(?:\/|$)/;
 const PROFILE_PATH_PATTERN = /^\/([a-z0-9_]{1,32})\/?$/i;
 const RESERVED_X_PATHS = new Set([
@@ -21,9 +20,6 @@ const RESERVED_X_PATHS = new Set([
 
 export type XTheme = "light" | "dark";
 
-/** `play` renders the game itself, `watch` renders the spectate card. */
-export type CardKind = "play" | "watch";
-
 export type GameReference = { kind: GameType; gameId: string };
 export type GameResizeMessage = GameReference & {
   type: "grokplay:resize";
@@ -31,7 +27,6 @@ export type GameResizeMessage = GameReference & {
 };
 
 export interface CardMarker {
-  card: CardKind;
   gameId: string;
   gameType: GameType;
   /** Legacy marker metadata. New lobbies choose the wager in the setup card. */
@@ -40,18 +35,16 @@ export interface CardMarker {
 
 export function parseCardMarker(text: string): CardMarker | null {
   const match = text.match(CARD_MARKER_PATTERN);
-  const keyword = match?.[1];
-  const gameId = match?.[3];
-  if (!keyword || !gameId) return null;
+  const gameId = match?.[2];
+  if (!gameId) return null;
 
-  const explicitType = match[2]?.toLowerCase();
-  const wager = match[4];
+  const explicitType = match[1]?.toLowerCase();
+  const wager = match[3];
 
   // The keyword and type segments are matched case insensitively, but the id is
   // the Postgres `slug` primary key and its check constraint preserves case, so
   // keep it verbatim.
   return {
-    card: keyword.toLowerCase() as CardKind,
     gameId,
     gameType: isGameType(explicitType) ? explicitType : gameTypeFromSlug(gameId),
     wagerCents: wager === undefined ? null : Math.round(Number(wager) * 100),

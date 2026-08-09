@@ -2,12 +2,11 @@
 
 A Chrome extension prototype that attaches playable 3D games to marked posts in the X feed. It supports the original two-player Rock Paper Scissors arena and a four-human Taiwanese 16-tile Mahjong table powered by Supabase Realtime and an authoritative Edge Function.
 
-Two markers render two different cards:
+Use a game marker to render an embedded card:
 
 | Marker | Card |
 | --- | --- |
 | `[grokplay:<id>]` | Shared lobby: choose a game and wager, then play |
-| `[grokwatch:<id>]` | Spectate card: the stakes, the players, who is watching, and a live room with chat |
 
 ## 1. Configure Supabase
 
@@ -101,23 +100,7 @@ Legacy explicit markers such as `[grokplay:mahjong:table_12]` still work and pre
 
 ## 5. Spectate a game
 
-Anyone can point a post at an existing game with the spectate marker. Reuse the same game ID:
-
-```text
-nico vs allegra, winner takes the pot 👀
-
-[grokwatch:rps-8f3k]
-```
-
-The card shows the stakes, both players, the live round status, and how many people are watching. Clicking **Spectate** swaps the card into the spectate room: the same 3D arena in read-only mode, plus a live chat.
-
-The separate marker is optional for RPS. Once a normal `[grokplay:<id>]` lobby is full, any viewer who is not one of the two seated Supabase users automatically enters the same spectator room. The host and guest continue to see their player controls. Use `[grokwatch:<id>]` when you want a separate promotional post that always opens as a spectator card.
-
-- The spectator roster comes from Supabase Realtime Presence, so it empties on its own when people navigate away. A full `[grokplay:<id>]` post enters the room immediately; on a separate `[grokwatch:<id>]` post, you appear after clicking **Spectate**.
-- Chat is stored in `spectator_messages` and delivered over Supabase Realtime. It is styled after an X reply thread but is not posted to X.
-- Spectators never see a move before both players lock in. Row Level Security keeps each player's choice private until the round resolves.
-
-A spectate post never opens a lobby of its own, so publish the `[grokplay:<id>]` post first and let the host view it.
+Once an RPS lobby is full, anyone who is not one of its two players automatically sees the regular 3D gameplay arena in read-only mode. Spectators have no join, move, replay, or betting controls, and there is no separate chat interface. Moves remain hidden until both players lock in.
 
 ## Troubleshooting
 
@@ -130,8 +113,6 @@ A spectate post never opens a lobby of its own, so publish the `[grokplay:<id>]`
 - **Run the RPS round migration:** apply every migration in filename order if the lobby works but move submission fails.
 - **Deploy the Mahjong function:** run `supabase functions deploy mahjong-game` if the Mahjong card reports that its server is unavailable.
 - **Table looks compact:** join a seat or click **Open table**; the Mahjong iframe expands inside the post without opening a new page.
-- **Run the spectator chat migration:** apply `20260808210000_add_spectator_chat.sql` if the spectate card loads but chat fails.
-- **No match yet:** the spectate marker points at a game ID whose host has not opened their `[grokplay:<id>]` post.
 
 ## Checks
 

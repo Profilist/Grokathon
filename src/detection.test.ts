@@ -10,20 +10,14 @@ import {
 describe("parseCardMarker", () => {
   it("extracts a game id from a marked post", () => {
     expect(parseCardMarker("Who wants to play? [grokplay:demo]")).toEqual({
-      card: "play",
       gameId: "demo",
       gameType: "rps",
       wagerCents: null,
     });
   });
 
-  it("recognizes the spectate marker", () => {
-    expect(parseCardMarker("Come watch this one [grokwatch:demo]")).toEqual({
-      card: "watch",
-      gameId: "demo",
-      gameType: "rps",
-      wagerCents: null,
-    });
+  it("does not recognize the removed spectate marker", () => {
+    expect(parseCardMarker("Come watch this one [grokwatch:demo]")).toBeNull();
   });
 
   it("reads the game type from the slug prefix", () => {
@@ -34,12 +28,11 @@ describe("parseCardMarker", () => {
 
   it("still routes the explicit game type segment", () => {
     expect(parseCardMarker("Four seats open [grokplay:mahjong:table_12]")).toEqual({
-      card: "play",
       gameId: "table_12",
       gameType: "mahjong",
       wagerCents: null,
     });
-    expect(parseCardMarker("[grokwatch:mahjong:table_12]")?.card).toBe("watch");
+    expect(parseCardMarker("[grokwatch:mahjong:table_12]")).toBeNull();
   });
 
   it("falls back to rock paper scissors for unprefixed slugs", () => {
@@ -49,24 +42,21 @@ describe("parseCardMarker", () => {
 
   it("reads an optional wager suffix", () => {
     expect(parseCardMarker("[grokplay:mahjong-friday@25]")).toEqual({
-      card: "play",
       gameId: "mahjong-friday",
       gameType: "mahjong",
       wagerCents: 2500,
     });
-    expect(parseCardMarker("[grokwatch:rps-demo@18.75]")?.wagerCents).toBe(1875);
     expect(parseCardMarker("[grokplay:rps-demo@$5]")?.wagerCents).toBe(500);
     expect(parseCardMarker("[grokplay:mahjong:table_12@40]")?.wagerCents).toBe(4000);
   });
 
   it("is case insensitive while preserving the id", () => {
     expect(parseCardMarker("[GROKPLAY:Rps_12]")).toEqual({
-      card: "play",
       gameId: "Rps_12",
       gameType: "rps",
       wagerCents: null,
     });
-    expect(parseCardMarker("[GrokWatch:Rps_12]")?.card).toBe("watch");
+    expect(parseCardMarker("[GrokWatch:Rps_12]")).toBeNull();
     expect(parseCardMarker("[grokplay:MAHJONG:Table_12]")?.gameType).toBe("mahjong");
   });
 

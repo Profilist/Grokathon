@@ -10,7 +10,6 @@ const MahjongCard = lazy(() =>
 
 type Props = {
   gameId: string;
-  hostAvatar: string | null;
   hostHandle: string;
   initialGameType: GameType;
   preview: PreviewMode | null;
@@ -20,7 +19,6 @@ type Props = {
 
 export function GameRouter({
   gameId,
-  hostAvatar,
   hostHandle,
   initialGameType,
   preview,
@@ -38,7 +36,6 @@ export function GameRouter({
     return (
       <GameCard
         gameId={gameId}
-        hostAvatar={hostAvatar}
         hostHandle={hostHandle}
         preview={preview}
         theme={theme}
@@ -79,7 +76,6 @@ export function GameRouter({
     return (
       <GameCard
         gameId={gameId}
-        hostAvatar={hostAvatar}
         hostHandle={hostHandle}
         preview={null}
         theme={theme}

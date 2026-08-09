@@ -30,8 +30,7 @@ export type LobbyStatus =
 
 interface UseGameLobbyOptions {
   /**
-   * Opens a lobby when the author views their own marked post. Spectate cards
-   * pass `false` so a `[grokwatch:…]` post never mints a lobby of its own.
+   * Opens a lobby when the author views their own marked post.
    */
   createIfMissing?: boolean;
   enabled: boolean;

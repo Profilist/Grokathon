@@ -2,7 +2,6 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useGameLobby, type GameLobbyState } from "./useGameLobby";
 import { ArenaBackdrop } from "./ArenaBackdrop";
 import { RpsArena3D } from "./RpsArena3D";
-import { SpectateCard } from "./SpectateCard";
 import {
   getPlayerHasPlayed,
   getPlayerResult,
@@ -17,11 +16,10 @@ const MOVES: RpsMove[] = ["rock", "paper", "scissors"];
 
 export type PreviewMode = GameStatus | "full" | "joined";
 
-type UiPhase = "open" | "full" | "wagerConfirm" | "spectating" | "playing" | "complete";
+type UiPhase = "open" | "wagerConfirm" | "spectating" | "playing" | "complete";
 
 interface GameCardProps {
   gameId: string;
-  hostAvatar: string | null;
   hostHandle: string;
   preview: PreviewMode | null;
   theme: "light" | "dark";
@@ -34,7 +32,7 @@ function previewState(
   hostHandle: string,
   viewerHandle: string | null,
   preview: PreviewMode,
-  opts: { previewJoined: boolean; isSpectating: boolean },
+  opts: { previewJoined: boolean },
 ): GameLobbyState {
   const isOpen = preview === "open" && !opts.previewJoined;
   const isJoinedPreview = preview === "joined" || opts.previewJoined;
@@ -50,17 +48,14 @@ function previewState(
           : "ready";
 
   const hasGuest = !isOpen;
-  const resolvedRole =
-    isOpen || (isFull && !opts.isSpectating)
-      ? "viewer"
-      : isFull && opts.isSpectating
-        ? "viewer"
-        : isJoinedPreview ||
-            preview === "ready" ||
-            preview === "playing" ||
-            preview === "complete"
-          ? "guest"
-          : "viewer";
+  const resolvedRole = isFull
+    ? "viewer"
+    : isJoinedPreview ||
+        preview === "ready" ||
+        preview === "playing" ||
+        preview === "complete"
+      ? "guest"
+      : "viewer";
 
   const lobby: GameLobby = {
     slug: gameId,
@@ -152,7 +147,7 @@ function LobbyArena({
 }: {
   host: string;
   guest: string | null;
-  mode: "open" | "full" | "wagerConfirm" | "spectating";
+  mode: "open" | "wagerConfirm" | "spectating";
   wagerAmount: number;
 }) {
   return (
@@ -181,14 +176,6 @@ function LobbyArena({
         </div>
       ) : null}
 
-      {mode === "full" ? (
-        <div className="arena-lobby-overlay" aria-live="polite">
-          <small>Game full</small>
-          <strong className="arena-lobby-overlay__headline">Spectate only</strong>
-          <span className="arena-lobby-overlay__detail">Both seats are taken</span>
-        </div>
-      ) : null}
-
       {mode === "spectating" ? (
         <div className="arena-lobby-overlay" aria-live="polite">
           <small>Spectating</small>
@@ -214,12 +201,12 @@ function LobbyArena({
 function deriveUiPhase({
   preview,
   state,
-  isSpectating,
+  readOnlySpectator,
   showWagerConfirm,
 }: {
   preview: PreviewMode | null;
   state: GameLobbyState;
-  isSpectating: boolean;
+  readOnlySpectator: boolean;
   showWagerConfirm: boolean;
 }): UiPhase {
   if (showWagerConfirm) return "wagerConfirm";
@@ -231,20 +218,18 @@ function deriveUiPhase({
   const roundActive =
     state.lobby?.status === "ready" || state.lobby?.status === "playing";
 
-  if (isSpectating) {
+  if (readOnlySpectator) {
     if (seatTaken && roundActive) return "playing";
     return "spectating";
   }
 
   if (seatOpen && isViewer) return "open";
-  if (isViewer && seatTaken) return "full";
   if (roundActive || state.role === "host" || state.role === "guest") return "playing";
   return "open";
 }
 
 export function GameCard({
   gameId,
-  hostAvatar,
   hostHandle,
   preview,
   theme,
@@ -260,7 +245,6 @@ export function GameCard({
     viewerHandle,
     wagerCents,
   });
-  const [isSpectating, setIsSpectating] = useState(false);
   const [showWagerConfirm, setShowWagerConfirm] = useState(preview === "joined");
   const [previewJoined, setPreviewJoined] = useState(false);
   const [joinedPendingConfirm, setJoinedPendingConfirm] = useState(false);
@@ -268,12 +252,10 @@ export function GameCard({
   const state = preview
     ? previewState(gameId, hostHandle, viewerHandle, preview, {
         previewJoined,
-        isSpectating,
       })
     : liveState;
 
   useEffect(() => {
-    setIsSpectating(false);
     setShowWagerConfirm(preview === "joined");
     setPreviewJoined(false);
     setJoinedPendingConfirm(false);
@@ -287,26 +269,16 @@ export function GameCard({
     }
   }, [joinedPendingConfirm, preview, state.role]);
 
-  if (preview === null && shouldShowSpectatorView(state.lobby, state.role)) {
-    return (
-      <SpectateCard
-        authorAvatar={hostAvatar}
-        authorHandle={hostHandle}
-        gameId={gameId}
-        gameType="rps"
-        initiallySpectating
-        lobbyState={state}
-        preview={null}
-        theme={theme}
-        viewerHandle={viewerHandle}
-        wagerCents={wagerCents}
-      />
-    );
-  }
-
   const displayedHost = state.lobby?.host_handle ?? hostHandle;
   const displayedGuest = state.lobby?.guest_handle ?? null;
-  const uiPhase = deriveUiPhase({ preview, state, isSpectating, showWagerConfirm });
+  const isReadOnlySpectator =
+    preview === "full" || shouldShowSpectatorView(state.lobby, state.role);
+  const uiPhase = deriveUiPhase({
+    preview,
+    state,
+    readOnlySpectator: isReadOnlySpectator,
+    showWagerConfirm,
+  });
   const isPlayer = state.role === "host" || state.role === "guest";
   const hasPlayed = getPlayerHasPlayed(state.lobby, state.role);
   const movesUnlocked =
@@ -339,10 +311,6 @@ export function GameCard({
     await state.join();
   };
 
-  const handleSpectate = () => {
-    setIsSpectating(true);
-  };
-
   const handleContinue = () => {
     setShowWagerConfirm(false);
   };
@@ -354,12 +322,11 @@ export function GameCard({
   };
 
   let actionBar: ReactNode;
-  if (uiPhase === "open") {
+  if (isReadOnlySpectator) {
+    actionBar = null;
+  } else if (uiPhase === "open") {
     actionBar = (
       <footer className="action-bar action-bar--lobby">
-        <button type="button" className="move-btn" onClick={handleSpectate}>
-          Spectate
-        </button>
         <button
           type="button"
           className="primary-btn"
@@ -371,27 +338,11 @@ export function GameCard({
         </button>
       </footer>
     );
-  } else if (uiPhase === "full") {
-    actionBar = (
-      <footer className="action-bar action-bar--confirm">
-        <button type="button" className="primary-btn" onClick={handleSpectate}>
-          Spectate
-        </button>
-      </footer>
-    );
   } else if (uiPhase === "wagerConfirm") {
     actionBar = (
       <footer className="action-bar action-bar--confirm">
         <button type="button" className="primary-btn" onClick={handleContinue}>
           Continue
-        </button>
-      </footer>
-    );
-  } else if (uiPhase === "spectating" && !showPlayArena) {
-    actionBar = (
-      <footer className="action-bar action-bar--confirm">
-        <button type="button" className="primary-btn" disabled aria-disabled>
-          Spectating
         </button>
       </footer>
     );
@@ -429,14 +380,12 @@ export function GameCard({
     );
   }
 
-  const lobbyMode: "open" | "full" | "wagerConfirm" | "spectating" =
+  const lobbyMode: "open" | "wagerConfirm" | "spectating" =
     uiPhase === "wagerConfirm"
       ? "wagerConfirm"
-      : uiPhase === "full"
-        ? "full"
-        : uiPhase === "spectating"
-          ? "spectating"
-          : "open";
+      : uiPhase === "spectating"
+        ? "spectating"
+        : "open";
 
   const lobbyGuest =
     lobbyMode === "open"
