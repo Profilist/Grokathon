@@ -419,7 +419,7 @@ export function GameCard({
               <span className="brand__name">Grok Play</span>
             </div>
             <div className="title-block">
-              <p className="eyebrow">Head - To - Head</p>
+              <p className="eyebrow">Head to Head</p>
               <h1>Grock Paper Scissors</h1>
             </div>
           </div>

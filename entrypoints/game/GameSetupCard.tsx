@@ -54,7 +54,7 @@ export function GameSetupCard({
               <span className="brand__name">Grok Play</span>
             </div>
             <div className="title-block">
-              <p className="eyebrow">CHOOSE YOUR CHALLENGE</p>
+              <p className="eyebrow">Choose Your Challenge</p>
               <h1>Create a game</h1>
             </div>
           </div>

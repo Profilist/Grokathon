@@ -13,6 +13,7 @@ import type {
 } from "../../src/mahjong/types";
 import { useMahjongGame } from "./useMahjongGame";
 import { formatCents } from "../../src/games/catalog";
+import grokAvatar from "../../assets/grok.jpeg";
 
 type Props = {
   gameId: string;
@@ -119,25 +120,38 @@ function MahjongHeader({
   wagerCents: number;
 }) {
   return (
-    <header className="game-card__header mahjong-header">
-      <div className="brand">
-        <span className="brand__mark mahjong-brand-mark" aria-hidden>麻</span>
-        <div>
-          <div className="brand__name">Grok Mahjong</div>
-          <div className="brand__meta">Table #{gameId}</div>
+    <header className="game-card__top mahjong-header">
+      <div className="brand-col">
+        <div className="brand">
+          <img
+            className="brand__mark"
+            src={grokAvatar}
+            alt=""
+            width={28}
+            height={28}
+            aria-hidden
+          />
+          <span className="brand__name">Grok Play</span>
+        </div>
+        <div className="title-block">
+          <p className="eyebrow">Table #{gameId}</p>
+          <h1>Grok Mahjong</h1>
         </div>
       </div>
-      <div className="mahjong-header__actions">
-        <span className="mahjong-wager">
+      <div className="mahjong-header__aside">
+        <div className="wager-box" aria-label={`${formatCents(wagerCents)} wager`}>
           <strong>{formatCents(wagerCents).replace(".00", "")}</strong>
-          <small>Wager</small>
-        </span>
-        <span className={`mahjong-live${connected ? " is-live" : ""}`}>
-          <span />{connected ? "Live" : "Connecting"}
-        </span>
-        <button className="mahjong-expand" type="button" onClick={onToggle}>
-          {expanded ? "Collapse" : "Open table"}
-        </button>
+          <span>Wager</span>
+        </div>
+        <div className="mahjong-header__actions">
+          <span className={`mahjong-live${connected ? " is-live" : ""}`}>
+            <span />
+            {connected ? "Live" : "Connecting"}
+          </span>
+          <button className="mahjong-expand" type="button" onClick={onToggle}>
+            {expanded ? "Collapse" : "Open table"}
+          </button>
+        </div>
       </div>
     </header>
   );
@@ -156,7 +170,7 @@ function MahjongLobby({
     <div className="mahjong-lobby">
       <div className="mahjong-title-row">
         <div>
-          <p className="eyebrow">TAIWANESE · 16 TILE</p>
+          <p className="eyebrow">Taiwanese · 16 Tile</p>
           <h1>{view.game.status === "complete" ? "Next hand is filling" : "Four-player Mahjong"}</h1>
         </div>
         <span className={`lobby-status lobby-status--${view.game.status}`}>
