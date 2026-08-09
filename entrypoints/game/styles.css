@@ -1117,7 +1117,7 @@ h1 {
   font-size: 9px;
 }
 
-.wager-picker > span {
+.wager-picker > label {
   display: block;
   margin-bottom: 7px;
   color: var(--muted);
@@ -1126,27 +1126,59 @@ h1 {
   text-transform: uppercase;
 }
 
-.wager-picker > div {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
+.wager-input {
+  display: flex;
+  align-items: center;
+  min-height: 50px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.62);
+  transition: border-color 140ms ease, box-shadow 140ms ease;
 }
 
-.wager-picker button {
-  min-height: 31px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 10px;
-  color: var(--text);
-  background: rgba(0, 0, 0, 0.58);
-  font-size: 11px;
-  font-weight: 750;
-  cursor: pointer;
-}
-
-.wager-picker button.is-selected {
+.wager-input:focus-within {
   border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(0, 158, 247, 0.16);
+}
+
+.wager-input.is-invalid {
+  border-color: #ff5c7a;
+}
+
+.wager-input > span {
+  flex: 0 0 auto;
+  color: var(--text);
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.wager-input input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
   color: #ffffff;
-  background: rgba(0, 158, 247, 0.34);
+  background: transparent;
+  font: inherit;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.wager-input input::-webkit-inner-spin-button,
+.wager-input input::-webkit-outer-spin-button {
+  margin: 0;
+  appearance: none;
+}
+
+.wager-picker > small {
+  display: block;
+  min-height: 12px;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 9px;
 }
 
 .game-setup-note {
@@ -1228,13 +1260,18 @@ h1 {
     font-size: 17px;
   }
 
-  .wager-picker > span,
+  .wager-picker > label,
   .game-setup-note {
     display: none;
   }
 
-  .wager-picker > div {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+  .wager-input {
+    min-height: 44px;
+  }
+
+  .wager-input > span,
+  .wager-input input {
+    font-size: 22px;
   }
 
   .move-btn,

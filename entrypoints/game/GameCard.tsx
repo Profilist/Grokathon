@@ -10,9 +10,14 @@ import {
   type GameStatus,
   type RpsMove,
 } from "../../src/lobby";
+import { formatCents } from "../../src/games/catalog";
 import grokAvatar from "../../assets/grok.jpeg";
 
 const MOVES: RpsMove[] = ["rock", "paper", "scissors"];
+
+function formatWagerAmount(amount: number): string {
+  return formatCents(Math.round(amount * 100)).replace(/\.00$/, "");
+}
 
 export type PreviewMode = GameStatus | "full" | "joined";
 
@@ -150,6 +155,8 @@ function LobbyArena({
   mode: "open" | "wagerConfirm" | "spectating";
   wagerAmount: number;
 }) {
+  const wagerLabel = formatWagerAmount(wagerAmount);
+
   return (
     <div className={`rps-arena rps-arena--lobby rps-arena--${mode}`}>
       <ArenaBackdrop />
@@ -168,10 +175,10 @@ function LobbyArena({
         <div className="arena-lobby-overlay" aria-live="polite">
           <small>Seat open</small>
           <strong className="arena-lobby-overlay__headline">
-            Challenge @{host.replace(/^@/, "")}
+            Challenge @{host.replace(/^@/, "")} for {wagerLabel}
           </strong>
           <span className="arena-lobby-overlay__detail">
-            Join to lock your ${wagerAmount} wager
+            Join to lock your {wagerLabel} wager
           </span>
         </div>
       ) : null}
@@ -188,7 +195,7 @@ function LobbyArena({
         <div className="arena-money-overlay" aria-live="polite">
           <small className="arena-money-overlay__brand">X Money</small>
           <strong className="arena-money-overlay__title">Demo wager selected</strong>
-          <span className="arena-money-overlay__amount">${wagerAmount}</span>
+          <span className="arena-money-overlay__amount">{wagerLabel}</span>
           <span className="arena-money-overlay__detail">
             Concept only · no funds moved
           </span>
@@ -237,6 +244,7 @@ export function GameCard({
   wagerCents,
 }: GameCardProps) {
   const wagerAmount = wagerCents / 100;
+  const wagerLabel = formatWagerAmount(wagerAmount);
   const liveState = useGameLobby({
     createIfMissing: false,
     enabled: preview === null,
@@ -415,8 +423,8 @@ export function GameCard({
               <h1>Grock Paper Scissors</h1>
             </div>
           </div>
-          <div className="wager-box" aria-label={`$${wagerAmount} wager`}>
-            <strong>${wagerAmount}</strong>
+          <div className="wager-box" aria-label={`${wagerLabel} wager`}>
+            <strong>{wagerLabel}</strong>
             <span>Wager</span>
           </div>
         </header>

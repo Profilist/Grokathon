@@ -67,7 +67,7 @@ Who wants to play?
 Use a new lobby ID each time. IDs may contain letters, numbers, underscores, and hyphens.
 
 1. While signed into the posting X account, the host views their own marked post.
-2. The host chooses **Rock Paper Scissors** or **Mahjong**, selects a $5, $10, $20, or $50 concept wager, and creates the game.
+2. The host chooses **RPS** or **Mahjong**, enters a concept wager amount, and creates the game.
 3. Supabase binds that lobby ID to the selected game and wager. Everyone viewing the post transitions to the chosen game through Realtime.
 4. Other players join and play using the game-specific controls.
 

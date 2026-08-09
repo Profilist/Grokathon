@@ -2,7 +2,10 @@ import { useEffect, useState } from "react";
 import { ArenaBackdrop } from "./ArenaBackdrop";
 import type { GameListingState } from "./useGameListing";
 import { GAME_CATALOG, formatCents, type GameType } from "../../src/games/catalog";
-import { WAGER_PRESETS_CENTS } from "../../src/games/listing";
+import {
+  parseWagerDollars,
+  wagerInputFromCents,
+} from "../../src/games/listing";
 import grokAvatar from "../../assets/grok.jpeg";
 
 const SELECTABLE_GAMES: GameType[] = ["rps", "mahjong"];
@@ -24,19 +27,17 @@ export function GameSetupCard({
 }: Props) {
   const safeInitialType = initialGameType === "mahjong" ? "mahjong" : "rps";
   const [gameType, setGameType] = useState<GameType>(safeInitialType);
-  const [wagerCents, setWagerCents] = useState(
-    GAME_CATALOG[safeInitialType].defaultWagerCents,
+  const [wagerInput, setWagerInput] = useState(
+    wagerInputFromCents(GAME_CATALOG[safeInitialType].defaultWagerCents),
   );
+  const wagerCents = parseWagerDollars(wagerInput);
 
   useEffect(() => {
     setGameType(safeInitialType);
-    setWagerCents(GAME_CATALOG[safeInitialType].defaultWagerCents);
+    setWagerInput(wagerInputFromCents(GAME_CATALOG[safeInitialType].defaultWagerCents));
   }, [gameId, safeInitialType]);
 
-  const chooseGame = (nextType: GameType) => {
-    setGameType(nextType);
-    setWagerCents(GAME_CATALOG[nextType].defaultWagerCents);
-  };
+  const chooseGame = (nextType: GameType) => setGameType(nextType);
 
   const unavailable =
     state.status === "loading" ||
@@ -57,8 +58,8 @@ export function GameSetupCard({
               <h1>Create a game</h1>
             </div>
           </div>
-          <div className="wager-box" aria-label={`${formatCents(wagerCents)} wager`}>
-            <strong>{formatCents(wagerCents).replace(".00", "")}</strong>
+          <div className="wager-box" aria-label={wagerCents ? `${formatCents(wagerCents)} wager` : "Invalid wager"}>
+            <strong>{wagerCents ? formatCents(wagerCents).replace(".00", "") : "—"}</strong>
             <span>Wager</span>
           </div>
         </header>
@@ -87,21 +88,28 @@ export function GameSetupCard({
               </div>
 
               <div className="wager-picker">
-                <span>Choose wager</span>
-                <div role="radiogroup" aria-label="Choose wager amount">
-                  {WAGER_PRESETS_CENTS.map((amount) => (
-                    <button
-                      key={amount}
-                      type="button"
-                      role="radio"
-                      aria-checked={wagerCents === amount}
-                      className={wagerCents === amount ? "is-selected" : ""}
-                      onClick={() => setWagerCents(amount)}
-                    >
-                      {formatCents(amount).replace(".00", "")}
-                    </button>
-                  ))}
+                <label htmlFor={`wager-${gameId}`}>Wager amount</label>
+                <div className={`wager-input${wagerCents === null ? " is-invalid" : ""}`}>
+                  <span aria-hidden>$</span>
+                  <input
+                    id={`wager-${gameId}`}
+                    type="number"
+                    inputMode="decimal"
+                    min="0.01"
+                    max="999999.99"
+                    step="0.01"
+                    value={wagerInput}
+                    aria-invalid={wagerCents === null}
+                    aria-describedby={`wager-help-${gameId}`}
+                    onChange={(event) => setWagerInput(event.target.value)}
+                    onBlur={() => {
+                      if (wagerCents !== null) setWagerInput(wagerInputFromCents(wagerCents));
+                    }}
+                  />
                 </div>
+                <small id={`wager-help-${gameId}`}>
+                  {wagerCents === null ? "Enter an amount above $0" : "USD per player"}
+                </small>
               </div>
               <p className="game-setup-note">Concept wager only · no money is moved</p>
             </div>
@@ -119,8 +127,10 @@ export function GameSetupCard({
             <button
               type="button"
               className="primary-btn"
-              disabled={state.isCreating || unavailable}
-              onClick={() => void state.createGame(gameType, wagerCents)}
+              disabled={state.isCreating || unavailable || wagerCents === null}
+              onClick={() => {
+                if (wagerCents !== null) void state.createGame(gameType, wagerCents);
+              }}
             >
               {state.isCreating ? "Creating…" : `Create ${GAME_CATALOG[gameType].shortTitle} Game`}
             </button>

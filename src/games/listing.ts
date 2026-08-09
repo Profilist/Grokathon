@@ -13,7 +13,22 @@ export interface GameListing {
   updated_at: string;
 }
 
-export const WAGER_PRESETS_CENTS = [500, 1000, 2000, 5000] as const;
+export const MAX_WAGER_CENTS = 99_999_999;
+
+export function parseWagerDollars(value: string): number | null {
+  const normalized = value.trim();
+  if (!/^\d{1,6}(?:\.\d{0,2})?$/.test(normalized)) return null;
+
+  const cents = Math.round(Number(normalized) * 100);
+  if (!Number.isSafeInteger(cents) || cents < 1 || cents > MAX_WAGER_CENTS) {
+    return null;
+  }
+  return cents;
+}
+
+export function wagerInputFromCents(cents: number): string {
+  return (cents / 100).toFixed(2).replace(/\.00$/, "");
+}
 
 export function isGameListing(value: unknown): value is GameListing {
   if (!value || typeof value !== "object") return false;

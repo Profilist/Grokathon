@@ -304,16 +304,43 @@ export function RpsArena3D({
       scene.add(hostResult, guestResult);
     }
 
+    let renderedWidth = 0;
+    let renderedHeight = 0;
+    let renderedPixelRatio = 0;
+    const layoutObjects = (aspect: number) => {
+      const selectionSpacing = THREE.MathUtils.clamp(aspect * 0.9, 0.6, 1.08);
+      selectionObjects.forEach((object, index) => {
+        const move = selectionMoves[index];
+        object.position.x = phase === "waiting" && move === selectedMove
+          ? 0
+          : (index - 1) * selectionSpacing;
+        object.userData.baseX = object.position.x;
+      });
+
+      const resultSpacing = THREE.MathUtils.clamp(aspect * 0.82, 0.58, 0.98);
+      if (hostResult) hostResult.position.x = -resultSpacing;
+      if (guestResult) guestResult.position.x = resultSpacing;
+    };
     const resize = () => {
       const width = Math.max(1, canvas.clientWidth);
       const height = Math.max(1, canvas.clientHeight);
-      const pixelRatio = Math.min(window.devicePixelRatio || 1, 1.75);
-      const drawingWidth = Math.floor(width * pixelRatio);
-      const drawingHeight = Math.floor(height * pixelRatio);
-      if (canvas.width !== drawingWidth || canvas.height !== drawingHeight) {
-        renderer.setSize(drawingWidth, drawingHeight, false);
+      // The game lives inside an X iframe whose CSS dimensions change as the
+      // post expands. A 1:1 drawing buffer prevents Chromium from stretching
+      // or offsetting the WebGL canvas while that iframe is being resized.
+      const pixelRatio = 1;
+      if (
+        width !== renderedWidth ||
+        height !== renderedHeight ||
+        pixelRatio !== renderedPixelRatio
+      ) {
+        renderer.setPixelRatio(pixelRatio);
+        renderer.setSize(width, height, false);
         camera.aspect = width / height;
         camera.updateProjectionMatrix();
+        layoutObjects(camera.aspect);
+        renderedWidth = width;
+        renderedHeight = height;
+        renderedPixelRatio = pixelRatio;
       }
     };
     const resizeObserver = new ResizeObserver(resize);
